@@ -1,0 +1,49 @@
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    min-height: 100vh;
+}
+
+/* sidebar */
+.sidebar {
+    position: fixed;
+    width: 220px;
+    height: 100%;
+    background: #1e1e2f;
+    padding-top: 20px;
+}
+
+.sidebar a {
+    display: block;
+    color: #ccc;
+    padding: 15px;
+    text-decoration: none;
+}
+
+.sidebar a:hover {
+    background: #4facfe;
+    color: white;
+}
+
+/* content */
+.content {
+    margin-left: 230px;
+    padding: 20px;
+}
+
+/* cards */
+.card {
+    border-radius: 15px;
+    border: none;
+}
+
+/* buttons */
+.btn {
+    border-radius: 10px;
+}
+
+/* table */
+.table th {
+    background: #4facfe;
+    color: white;
+}
