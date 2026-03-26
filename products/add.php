@@ -6,6 +6,12 @@ if(!isset($_SESSION['user'])){
 }
 include('../config/db.php');
 
+// Cette page est réservée à l'admin
+requireAdmin();
+
+// Récupérer infos complètes de l'utilisateur connecté
+$currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
+
 $message = "";
 
 if(isset($_POST['add'])){
@@ -87,8 +93,68 @@ if(isset($_POST['add'])){
         pointer-events: none;
     }
 
+    /* PROFIL sidebar */
+    .sidebar-profile {
+        margin: 0 12px 14px;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.05));
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        border-radius: 14px;
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .sidebar-profile img {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        flex-shrink: 0;
+    }
+
+    .sidebar-avatar-placeholder {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #6366f1, #818cf8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 15px;
+        flex-shrink: 0;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-profile-name {
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sidebar-profile-role {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 20px;
+        margin-top: 3px;
+        background: rgba(99, 102, 241, 0.25);
+        color: #a5b4fc;
+    }
+
     .sidebar-brand {
-        padding: 28px 24px 20px;
+        padding: 20px 24px 14px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
@@ -119,7 +185,7 @@ if(isset($_POST['add'])){
 
     .sidebar-nav {
         flex: 1;
-        padding: 20px 12px;
+        padding: 8px 12px;
         overflow-y: auto;
     }
 
@@ -130,7 +196,7 @@ if(isset($_POST['add'])){
         color: rgba(255, 255, 255, 0.25);
         text-transform: uppercase;
         padding: 0 12px;
-        margin: 16px 0 8px;
+        margin: 14px 0 6px;
     }
 
     .sidebar-nav a {
@@ -168,8 +234,18 @@ if(isset($_POST['add'])){
         color: var(--primary);
     }
 
+    .admin-only-badge {
+        font-size: 9px;
+        font-weight: 700;
+        background: rgba(99, 102, 241, 0.25);
+        color: #a5b4fc;
+        padding: 1px 6px;
+        border-radius: 10px;
+        margin-left: auto;
+    }
+
     .sidebar-footer {
-        padding: 16px 12px;
+        padding: 12px 12px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
 
@@ -236,7 +312,7 @@ if(isset($_POST['add'])){
         text-decoration: underline;
     }
 
-    /* ===== MAIN LAYOUT ===== */
+    /* LAYOUT */
     .add-layout {
         display: grid;
         grid-template-columns: 1fr 340px;
@@ -244,7 +320,7 @@ if(isset($_POST['add'])){
         align-items: start;
     }
 
-    /* ===== FORM CARD ===== */
+    /* FORM CARD */
     .form-card {
         background: white;
         border-radius: 20px;
@@ -286,7 +362,20 @@ if(isset($_POST['add'])){
         margin: 3px 0 0;
     }
 
-    /* FORM GROUP */
+    /* ADMIN TAG dans le header du form */
+    .admin-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #ede9fe;
+        color: var(--primary);
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+        margin-top: 6px;
+    }
+
     .form-group {
         margin-bottom: 22px;
     }
@@ -313,7 +402,7 @@ if(isset($_POST['add'])){
         font-size: 12px;
     }
 
-    .form-group label .required {
+    .required {
         color: var(--red);
         margin-left: 2px;
     }
@@ -354,8 +443,8 @@ if(isset($_POST['add'])){
         transform: translateY(-50%);
         font-size: 17px;
         color: #94a3b8;
-        transition: color 0.2s;
         pointer-events: none;
+        transition: color 0.2s;
     }
 
     .input-wrap:focus-within .input-icon {
@@ -371,7 +460,6 @@ if(isset($_POST['add'])){
         gap: 4px;
     }
 
-    /* PREVIEW LIVE */
     .price-preview {
         display: inline-flex;
         align-items: center;
@@ -391,14 +479,12 @@ if(isset($_POST['add'])){
         opacity: 1;
     }
 
-    /* DIVIDER */
     .form-divider {
         border: none;
         border-top: 2px dashed #e2e8f0;
         margin: 24px 0;
     }
 
-    /* BOUTON */
     .btn-add {
         width: 100%;
         padding: 15px;
@@ -467,14 +553,13 @@ if(isset($_POST['add'])){
         background: #fef2f2;
     }
 
-    /* ===== SIDE PANEL ===== */
+    /* SIDE PANEL */
     .side-panel {
         display: flex;
         flex-direction: column;
         gap: 16px;
     }
 
-    /* APERÇU PRODUIT */
     .preview-card {
         background: white;
         border-radius: 20px;
@@ -548,7 +633,6 @@ if(isset($_POST['add'])){
         backdrop-filter: blur(4px);
     }
 
-    /* TIPS CARD */
     .tips-card {
         background: linear-gradient(135deg, #0f172a, #1e293b);
         border-radius: 20px;
@@ -675,16 +759,48 @@ if(isset($_POST['add'])){
             <h4>Stock App</h4>
             <span>Gestion de stock</span>
         </div>
+
+        <!-- PROFIL ADMIN -->
+        <div class="sidebar-profile">
+            <?php if(!empty($currentUser['photo'])): ?>
+            <img src="../uploads/<?= htmlspecialchars($currentUser['photo']) ?>" alt="Photo">
+            <?php else: ?>
+            <div class="sidebar-avatar-placeholder">
+                <?= strtoupper(substr($_SESSION['user'], 0, 1)) ?>
+            </div>
+            <?php endif; ?>
+            <div style="overflow:hidden;">
+                <div class="sidebar-profile-name"><?= htmlspecialchars($_SESSION['user']) ?></div>
+                <div class="sidebar-profile-role">👑 Administrateur</div>
+            </div>
+        </div>
+
         <nav class="sidebar-nav">
             <div class="nav-section">Principal</div>
             <a href="../dashboard.php"><i class="bi bi-speedometer2"></i> Dashboard</a>
+
             <div class="nav-section">Inventaire</div>
             <a href="list.php"><i class="bi bi-box-seam"></i> Produits</a>
-            <a href="add.php" class="active"><i class="bi bi-plus-circle"></i> Ajouter produit</a>
+            <a href="add.php" class="active">
+                <i class="bi bi-plus-circle"></i> Ajouter produit
+                <span class="admin-only-badge">Admin</span>
+            </a>
+
             <div class="nav-section">Ventes</div>
             <a href="../sales/sell.php"><i class="bi bi-cart-plus"></i> Nouvelle vente</a>
             <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique</a>
+
+            <div class="nav-section">Administration</div>
+            <a href="../admin/create_employee.php">
+                <i class="bi bi-people"></i> Employés
+                <span class="admin-only-badge">Admin</span>
+            </a>
+            <a href="../admin/profile.php">
+                <i class="bi bi-person-circle"></i> Mon profil
+                <span class="admin-only-badge">Admin</span>
+            </a>
         </nav>
+
         <div class="sidebar-footer">
             <a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Déconnexion</a>
         </div>
@@ -731,12 +847,13 @@ if(isset($_POST['add'])){
                     <div>
                         <h4>Nouveau produit</h4>
                         <p>Remplissez les champs ci-dessous</p>
+                        <div class="admin-tag">
+                            <i class="bi bi-shield-fill"></i> Accès administrateur uniquement
+                        </div>
                     </div>
                 </div>
 
                 <form method="POST" id="addForm">
-
-                    <!-- NOM -->
                     <div class="form-group">
                         <label>
                             <i class="bi bi-tag"></i>
@@ -747,15 +864,12 @@ if(isset($_POST['add'])){
                             <input type="text" name="name" id="inputName"
                                 placeholder="Ex: Chaussure Nike, Parfum Rose..." autocomplete="off" required>
                         </div>
-                        <div class="input-hint">
-                            <i class="bi bi-info-circle"></i>
-                            Donnez un nom clair et descriptif
+                        <div class="input-hint"><i class="bi bi-info-circle"></i> Donnez un nom clair et descriptif
                         </div>
                     </div>
 
                     <hr class="form-divider">
 
-                    <!-- QUANTITÉ -->
                     <div class="form-group">
                         <label>
                             <i class="bi bi-hash"></i>
@@ -765,13 +879,9 @@ if(isset($_POST['add'])){
                             <i class="bi bi-stack input-icon"></i>
                             <input type="number" name="quantity" id="inputQty" placeholder="Ex: 50" min="1" required>
                         </div>
-                        <div class="input-hint">
-                            <i class="bi bi-info-circle"></i>
-                            Nombre d'unités disponibles en stock
-                        </div>
+                        <div class="input-hint"><i class="bi bi-info-circle"></i> Nombre d'unités disponibles</div>
                     </div>
 
-                    <!-- PRIX -->
                     <div class="form-group">
                         <label>
                             <i class="bi bi-currency-exchange"></i>
@@ -785,38 +895,27 @@ if(isset($_POST['add'])){
                             <i class="bi bi-check-circle-fill"></i>
                             <span id="pricePreviewText"></span>
                         </div>
-                        <div class="input-hint">
-                            <i class="bi bi-info-circle"></i>
-                            Prix en Francs CFA (FCFA)
-                        </div>
+                        <div class="input-hint"><i class="bi bi-info-circle"></i> Prix en Francs CFA (FCFA)</div>
                     </div>
 
                     <hr class="form-divider">
 
                     <button type="submit" name="add" class="btn-add">
-                        <i class="bi bi-plus-circle-fill"></i>
-                        Ajouter le produit
+                        <i class="bi bi-plus-circle-fill"></i> Ajouter le produit
                     </button>
-
                     <button type="reset" class="btn-reset" onclick="resetPreview()">
-                        <i class="bi bi-arrow-counterclockwise"></i>
-                        Réinitialiser
+                        <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser
                     </button>
-
                 </form>
             </div>
 
             <!-- PANNEAU LATÉRAL -->
             <div class="side-panel">
-
-                <!-- APERÇU EN DIRECT -->
                 <div class="preview-card">
                     <h6><i class="bi bi-eye"></i> Aperçu en direct</h6>
                     <div class="preview-product">
                         <div class="preview-product-icon">📦</div>
-                        <div class="preview-product-name empty" id="previewName">
-                            Nom du produit...
-                        </div>
+                        <div class="preview-product-name empty" id="previewName">Nom du produit...</div>
                         <div class="preview-product-meta">
                             <div class="meta-pill" id="previewQty">Qté: —</div>
                             <div class="meta-pill" id="previewPrice">Prix: —</div>
@@ -824,7 +923,6 @@ if(isset($_POST['add'])){
                     </div>
                 </div>
 
-                <!-- CONSEILS -->
                 <div class="tips-card">
                     <h6>💡 Conseils</h6>
                     <div class="tip-item">
@@ -849,7 +947,6 @@ if(isset($_POST['add'])){
                         </div>
                     </div>
                 </div>
-
             </div>
 
         </div>
@@ -859,14 +956,12 @@ if(isset($_POST['add'])){
     const inputName = document.getElementById('inputName');
     const inputQty = document.getElementById('inputQty');
     const inputPrice = document.getElementById('inputPrice');
-
     const previewName = document.getElementById('previewName');
     const previewQty = document.getElementById('previewQty');
     const previewPrice = document.getElementById('previewPrice');
     const pricePreview = document.getElementById('pricePreview');
     const pricePreviewText = document.getElementById('pricePreviewText');
 
-    // Mise à jour aperçu nom
     inputName.addEventListener('input', function() {
         if (this.value.trim()) {
             previewName.textContent = this.value;
@@ -877,12 +972,10 @@ if(isset($_POST['add'])){
         }
     });
 
-    // Mise à jour aperçu quantité
     inputQty.addEventListener('input', function() {
         previewQty.textContent = this.value ? 'Qté: ' + this.value : 'Qté: —';
     });
 
-    // Mise à jour aperçu prix
     inputPrice.addEventListener('input', function() {
         if (this.value > 0) {
             const formatted = parseInt(this.value).toLocaleString('fr-FR');
@@ -903,7 +996,6 @@ if(isset($_POST['add'])){
         pricePreview.classList.remove('visible');
     }
 
-    // Disparition alertes après 10s
     setTimeout(function() {
         const alert = document.getElementById('alertMsg');
         if (alert) {

@@ -13,7 +13,12 @@ if(isset($_POST['login'])){
         $user = $res->fetch_assoc();
 
         if($user && password_verify($pass, $user['password'])){
-            $_SESSION['user'] = $user['username'];
+            // ── Stocker toutes les infos de session ──
+            $_SESSION['user']    = $user['username'];
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['role']    = $user['role'];
+            $_SESSION['photo']   = $user['photo'] ?? null;
+
             header("Location: ../dashboard.php");
             exit();
         } else {
@@ -55,7 +60,6 @@ if(isset($_POST['login'])){
         --gray: #64748b;
         --light: #f8fafc;
         --border: #e2e8f0;
-        --shadow: 0 20px 60px rgba(79, 70, 229, 0.15);
     }
 
     body {
@@ -69,7 +73,6 @@ if(isset($_POST['login'])){
         position: relative;
     }
 
-    /* FOND ANIMÉ */
     .bg-orbs {
         position: fixed;
         inset: 0;
@@ -123,7 +126,6 @@ if(isset($_POST['login'])){
         }
     }
 
-    /* GRILLE DE POINTS */
     body::before {
         content: '';
         position: fixed;
@@ -133,7 +135,6 @@ if(isset($_POST['login'])){
         z-index: 0;
     }
 
-    /* WRAPPER */
     .login-wrapper {
         position: relative;
         z-index: 1;
@@ -159,7 +160,6 @@ if(isset($_POST['login'])){
         }
     }
 
-    /* PANNEAU GAUCHE */
     .panel-left {
         flex: 1;
         background: linear-gradient(145deg, #4f46e5 0%, #7c3aed 50%, #2563eb 100%);
@@ -259,7 +259,35 @@ if(isset($_POST['login'])){
         box-shadow: 0 0 8px #10b981;
     }
 
-    /* PANNEAU DROIT */
+    /* ADMIN BADGE sur le panneau gauche */
+    .admin-hint {
+        margin-top: 28px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        backdrop-filter: blur(6px);
+    }
+
+    .admin-hint i {
+        font-size: 20px;
+        color: #fcd34d;
+    }
+
+    .admin-hint p {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.8);
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    .admin-hint strong {
+        color: white;
+    }
+
     .panel-right {
         width: 420px;
         background: #ffffff;
@@ -375,12 +403,11 @@ if(isset($_POST['login'])){
         box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
     }
 
-    .input-wrap input:focus+.icon,
     .input-wrap:focus-within .icon {
         color: var(--primary);
     }
 
-    .input-wrap .toggle-pass {
+    .toggle-pass {
         position: absolute;
         right: 14px;
         background: none;
@@ -392,8 +419,45 @@ if(isset($_POST['login'])){
         transition: color 0.2s;
     }
 
-    .input-wrap .toggle-pass:hover {
+    .toggle-pass:hover {
         color: var(--primary);
+    }
+
+    /* ROLE TABS */
+    .role-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 22px;
+    }
+
+    .role-tab {
+        flex: 1;
+        padding: 9px 12px;
+        border: 2px solid var(--border);
+        border-radius: 10px;
+        background: white;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--gray);
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .role-tab.active {
+        border-color: var(--primary);
+        background: var(--primary-lt);
+        color: var(--primary);
+    }
+
+    .role-tab:hover:not(.active) {
+        border-color: #c7d2fe;
+        background: #f5f3ff;
     }
 
     /* BOUTON */
@@ -439,7 +503,6 @@ if(isset($_POST['login'])){
         transform: translateY(0);
     }
 
-    /* LIEN */
     .register-link {
         text-align: center;
         margin-top: 20px;
@@ -459,8 +522,7 @@ if(isset($_POST['login'])){
         text-decoration: underline;
     }
 
-    /* RESPONSIVE */
-    @media(max-width: 700px) {
+    @media(max-width:700px) {
         .panel-left {
             display: none;
         }
@@ -496,22 +558,20 @@ if(isset($_POST['login'])){
             <p>Votre solution complète pour gérer votre stock, suivre vos ventes et piloter votre activité en temps
                 réel.</p>
             <div class="features">
-                <div class="feature-item">
-                    <span class="feature-dot"></span>
-                    Gestion des produits & stocks
-                </div>
-                <div class="feature-item">
-                    <span class="feature-dot"></span>
-                    Suivi des ventes en temps réel
-                </div>
-                <div class="feature-item">
-                    <span class="feature-dot"></span>
-                    Tableaux de bord & statistiques
-                </div>
-                <div class="feature-item">
-                    <span class="feature-dot"></span>
-                    Alertes stock faible automatiques
-                </div>
+                <div class="feature-item"><span class="feature-dot"></span> Gestion des produits & stocks</div>
+                <div class="feature-item"><span class="feature-dot"></span> Suivi des ventes en temps réel</div>
+                <div class="feature-item"><span class="feature-dot"></span> Tableaux de bord & statistiques</div>
+                <div class="feature-item"><span class="feature-dot"></span> Alertes stock faible automatiques</div>
+            </div>
+
+            <!-- HINT RÔLES -->
+            <div class="admin-hint">
+                <i class="bi bi-shield-lock-fill"></i>
+                <p>
+                    <strong>Accès sécurisé par rôle</strong><br>
+                    Admin : accès complet &amp; gestion des équipes<br>
+                    Employé : accès limité à son périmètre
+                </p>
             </div>
         </div>
 
@@ -521,6 +581,16 @@ if(isset($_POST['login'])){
             <h2>Connexion 👋</h2>
             <p class="tagline">Veuillez vous connecter pour accéder à votre espace.</p>
 
+            <!-- TABS RÔLE (visuel uniquement, le rôle est détecté auto en BDD) -->
+            <div class="role-tabs">
+                <button type="button" class="role-tab active" id="tabAdmin" onclick="setTab('admin')">
+                    <i class="bi bi-shield-fill"></i> Administrateur
+                </button>
+                <button type="button" class="role-tab" id="tabEmployee" onclick="setTab('employee')">
+                    <i class="bi bi-person-fill"></i> Employé
+                </button>
+            </div>
+
             <?= $message ?>
 
             <form method="POST" id="loginForm">
@@ -529,7 +599,7 @@ if(isset($_POST['login'])){
                     <label>Adresse email</label>
                     <div class="input-wrap">
                         <i class="bi bi-envelope icon"></i>
-                        <input type="email" name="email" placeholder="exemple@email.com" required>
+                        <input type="email" name="email" id="emailInput" placeholder="exemple@email.com" required>
                     </div>
                 </div>
 
@@ -544,7 +614,7 @@ if(isset($_POST['login'])){
                     </div>
                 </div>
 
-                <button type="submit" name="login" class="btn-login">
+                <button type="submit" name="login" class="btn-login" id="btnLogin">
                     <i class="bi bi-box-arrow-in-right"></i>
                     Se connecter
                 </button>
@@ -559,12 +629,22 @@ if(isset($_POST['login'])){
     </div>
 
     <script>
+    // Toggle mot de passe
     function togglePass() {
         const input = document.getElementById('password');
         const icon = document.getElementById('eyeIcon');
-        const visible = input.type === 'password';
-        input.type = visible ? 'text' : 'password';
-        icon.className = visible ? 'bi bi-eye-slash' : 'bi bi-eye';
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        icon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+    }
+
+    // Tabs visuels (informatif — le rôle est détecté automatiquement en BDD)
+    function setTab(role) {
+        document.getElementById('tabAdmin').classList.toggle('active', role === 'admin');
+        document.getElementById('tabEmployee').classList.toggle('active', role === 'employee');
+        // Changer le placeholder email selon le tab
+        const input = document.getElementById('emailInput');
+        input.placeholder = role === 'admin' ? 'admin@stock.com' : 'employe@email.com';
     }
 
     // Disparition alertes après 10s

@@ -6,6 +6,9 @@ if(!isset($_SESSION['user'])){
 }
 include('../config/db.php');
 
+// Récupérer infos complètes de l'utilisateur connecté
+$currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
+
 $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
 ?>
 
@@ -25,33 +28,190 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         background: #f4f6f9;
     }
 
+    /* SIDEBAR */
     .sidebar {
         position: fixed;
         width: 230px;
         height: 100%;
         background: #111827;
         padding-top: 20px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 100;
+    }
+
+    .sidebar::before {
+        content: '';
+        position: absolute;
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.25), transparent);
+        top: -60px;
+        right: -60px;
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+    /* PROFIL sidebar */
+    .sidebar-profile {
+        margin: 0 10px 14px;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.05));
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        border-radius: 14px;
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .sidebar-profile img {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        flex-shrink: 0;
+    }
+
+    .sidebar-avatar-placeholder {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #6366f1, #818cf8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 15px;
+        flex-shrink: 0;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-profile-name {
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sidebar-profile-role {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 20px;
+        margin-top: 3px;
+    }
+
+    .role-admin {
+        background: rgba(99, 102, 241, 0.25);
+        color: #a5b4fc;
+    }
+
+    .role-employee {
+        background: rgba(16, 185, 129, 0.2);
+        color: #6ee7b7;
+    }
+
+    .nav-section {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: rgba(255, 255, 255, 0.25);
+        text-transform: uppercase;
+        padding: 0 14px;
+        margin: 12px 0 5px;
+    }
+
+    .sidebar-nav {
+        flex: 1;
+        padding: 0 8px;
+        overflow-y: auto;
     }
 
     .sidebar h4 {
         color: white;
+        padding: 0 14px;
+        margin-bottom: 8px;
+        font-size: 15px;
     }
 
     .sidebar a {
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 10px;
         color: #9ca3af;
-        padding: 15px;
+        padding: 10px 12px;
         text-decoration: none;
         transition: 0.3s;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 2px;
     }
 
-    .sidebar a:hover,
-    .sidebar a.active {
-        background: #4f46e5;
+    .sidebar a i {
+        font-size: 16px;
+        width: 18px;
+        text-align: center;
+    }
+
+    .sidebar a:hover {
+        background: rgba(255, 255, 255, 0.07);
         color: white;
-        border-radius: 8px;
     }
 
+    .sidebar a.active {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(99, 102, 241, 0.1));
+        color: #a5b4fc;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .sidebar a.active i {
+        color: #6366f1;
+    }
+
+    .admin-only-badge {
+        font-size: 9px;
+        font-weight: 700;
+        background: rgba(99, 102, 241, 0.25);
+        color: #a5b4fc;
+        padding: 1px 6px;
+        border-radius: 10px;
+        margin-left: auto;
+    }
+
+    .sidebar-footer {
+        padding: 10px 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .sidebar-footer a {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        color: rgba(255, 255, 255, 0.4);
+        text-decoration: none;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+
+    .sidebar-footer a:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: #fca5a5;
+    }
+
+    /* CONTENT */
     .content {
         margin-left: 240px;
         padding: 20px;
@@ -91,20 +251,98 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         font-size: 12px;
         font-weight: 600;
     }
+
+    /* BANNIÈRE ACCÈS RESTREINT pour employé */
+    .employee-banner {
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        border: 1.5px solid #bbf7d0;
+        border-radius: 12px;
+        padding: 14px 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .employee-banner i {
+        font-size: 22px;
+        color: #10b981;
+    }
+
+    .employee-banner p {
+        margin: 0;
+        font-size: 13px;
+        color: #065f46;
+        font-weight: 500;
+    }
+
+    .employee-banner strong {
+        color: #047857;
+    }
     </style>
 </head>
 
 <body>
 
     <!-- SIDEBAR -->
-    <div class="sidebar text-center">
-        <h4>📦 Stock</h4>
-        <a href="../dashboard.php"><i class="bi bi-speedometer2"></i> Dashboard</a>
-        <a href="list.php" class="active"><i class="bi bi-box"></i> Produits</a>
-        <a href="add.php"><i class="bi bi-plus-circle"></i> Ajouter</a>
-        <a href="../sales/sell.php"><i class="bi bi-cart-plus"></i> Vente</a>
-        <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique</a>
-        <a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Logout</a>
+    <div class="sidebar">
+        <div class="text-center px-3 pt-2 pb-1">
+            <h4>📦 Stock</h4>
+        </div>
+
+        <!-- PROFIL -->
+        <div class="sidebar-profile">
+            <?php if(!empty($currentUser['photo'])): ?>
+            <img src="../uploads/<?= htmlspecialchars($currentUser['photo']) ?>" alt="Photo">
+            <?php else: ?>
+            <div class="sidebar-avatar-placeholder">
+                <?= strtoupper(substr($_SESSION['user'], 0, 1)) ?>
+            </div>
+            <?php endif; ?>
+            <div style="overflow:hidden;">
+                <div class="sidebar-profile-name"><?= htmlspecialchars($_SESSION['user']) ?></div>
+                <?php if(isAdmin()): ?>
+                <div class="sidebar-profile-role role-admin">👑 Admin</div>
+                <?php else: ?>
+                <div class="sidebar-profile-role role-employee">👤 Employé</div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="sidebar-nav">
+            <div class="nav-section">Principal</div>
+            <a href="../dashboard.php"><i class="bi bi-speedometer2"></i> Dashboard</a>
+
+            <div class="nav-section">Inventaire</div>
+            <a href="list.php" class="active"><i class="bi bi-box-seam"></i> Produits</a>
+
+            <?php if(isAdmin()): ?>
+            <a href="add.php">
+                <i class="bi bi-plus-circle"></i> Ajouter produit
+                <span class="admin-only-badge">Admin</span>
+            </a>
+            <?php endif; ?>
+
+            <div class="nav-section">Ventes</div>
+            <a href="../sales/sell.php"><i class="bi bi-cart-plus"></i> Nouvelle vente</a>
+            <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique</a>
+
+            <?php if(isAdmin()): ?>
+            <div class="nav-section">Administration</div>
+            <a href="../admin/create_employee.php">
+                <i class="bi bi-people"></i> Employés
+                <span class="admin-only-badge">Admin</span>
+            </a>
+            <a href="../admin/profile.php">
+                <i class="bi bi-person-circle"></i> Mon profil
+                <span class="admin-only-badge">Admin</span>
+            </a>
+            <?php endif; ?>
+        </div>
+
+        <div class="sidebar-footer">
+            <a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Déconnexion</a>
+        </div>
     </div>
 
     <!-- CONTENT -->
@@ -119,14 +357,28 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         <?php endif; ?>
         <?php endif; ?>
 
+        <!-- BANNIÈRE EMPLOYÉ (info accès restreint) -->
+        <?php if(isEmployee()): ?>
+        <div class="employee-banner">
+            <i class="bi bi-info-circle-fill"></i>
+            <p>
+                <strong>Mode consultation</strong> — Vous pouvez consulter les produits et enregistrer des ventes.
+                La modification et la suppression sont réservées à l'administrateur.
+            </p>
+        </div>
+        <?php endif; ?>
+
         <!-- HEADER -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h3>📦 Liste des produits</h3>
             <div class="d-flex gap-2">
                 <input type="text" id="search" class="form-control search-box" placeholder="Rechercher...">
+                <!-- Bouton Ajouter : admin seulement -->
+                <?php if(isAdmin()): ?>
                 <a href="add.php" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> Ajouter
                 </a>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -171,10 +423,9 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
                     </tr>
                 </thead>
                 <tbody>
-                    <?php 
-                // Relancer la requête car on a utilisé $res plus haut
+                    <?php
                 $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
-                while($row = $res->fetch_assoc()){ 
+                while($row = $res->fetch_assoc()):
                 ?>
                     <tr>
                         <td><?= $row['id'] ?></td>
@@ -192,38 +443,37 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
                             <?php endif; ?>
                         </td>
                         <td>
-                            <!-- Bouton Vendre (désactivé si rupture) -->
+                            <!-- VENDRE : tout le monde -->
                             <?php if($row['quantity'] > 0): ?>
                             <a href="../sales/sell.php?product_id=<?= $row['id'] ?>" class="btn btn-success btn-sm"
                                 title="Vendre">
                                 <i class="bi bi-cart"></i>
                             </a>
                             <?php else: ?>
-                            <button class="btn btn-secondary btn-sm" disabled title="Rupture de stock">
+                            <button class="btn btn-secondary btn-sm" disabled title="Rupture">
                                 <i class="bi bi-cart-x"></i>
                             </button>
                             <?php endif; ?>
 
-                            <!-- Modifier -->
+                            <!-- MODIFIER + SUPPRIMER : admin seulement -->
+                            <?php if(isAdmin()): ?>
                             <a href="edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm" title="Modifier">
                                 <i class="bi bi-pencil"></i>
                             </a>
-
-                            <!-- Supprimer -->
                             <a href="delete.php?id=<?= $row['id'] ?>" class="btn btn-danger btn-sm"
                                 onclick="return confirm('Supprimer ce produit ?')" title="Supprimer">
                                 <i class="bi bi-trash"></i>
                             </a>
+                            <?php endif; ?>
                         </td>
                     </tr>
-                    <?php } ?>
+                    <?php endwhile; ?>
                 </tbody>
             </table>
         </div>
 
     </div>
 
-    <!-- SEARCH SCRIPT -->
     <script>
     document.getElementById("search").addEventListener("keyup", function() {
         let value = this.value.toLowerCase();
@@ -231,16 +481,12 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
             row.style.display = row.innerText.toLowerCase().includes(value) ? "" : "none";
         });
     });
-    </script>
 
-    <script>
     setTimeout(function() {
-        document.querySelectorAll('.alert').forEach(function(alert) {
-            alert.style.transition = 'opacity 0.8s ease';
-            alert.style.opacity = '0';
-            setTimeout(function() {
-                alert.remove();
-            }, 800);
+        document.querySelectorAll('.alert').forEach(function(el) {
+            el.style.transition = 'opacity 0.8s ease';
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 800);
         });
     }, 10000);
     </script>
