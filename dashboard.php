@@ -19,6 +19,11 @@ $userCount = $userRes->fetch_assoc()['total_users'];
 $salesRes = $conn->query("SELECT COUNT(*) AS total_sales, SUM(quantity_sold * sale_price) AS total_revenue FROM sales");
 $salesStats = $salesRes->fetch_assoc();
 
+// ✅ Stats achats
+$achatsRes         = $conn->query("SELECT COUNT(*) AS total_achats, SUM(quantity * unit_price) AS total_depense FROM purchases");
+$achatsStats       = $achatsRes->fetch_assoc();
+$totalFournisseurs = $conn->query("SELECT COUNT(*) AS c FROM suppliers")->fetch_assoc()['c'];
+
 // Produits récents
 $recentProducts = $conn->query("SELECT * FROM products ORDER BY created_at DESC LIMIT 5");
 
@@ -28,6 +33,16 @@ $recentSales = $conn->query("
     FROM sales s 
     JOIN products p ON s.product_id = p.id 
     ORDER BY s.sold_at DESC 
+    LIMIT 5
+");
+
+// ✅ Achats récents
+$recentPurchases = $conn->query("
+    SELECT p.*, pr.name AS product_name, s.name AS supplier_name, s.phone AS supplier_phone
+    FROM purchases p
+    JOIN products  pr ON p.product_id  = pr.id
+    JOIN suppliers s  ON p.supplier_id = s.id
+    ORDER BY p.purchased_at DESC
     LIMIT 5
 ");
 
@@ -374,6 +389,18 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         background: linear-gradient(135deg, #ec4899, #db2777);
     }
 
+    .bg-indigo {
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
+    }
+
+    .bg-teal {
+        background: linear-gradient(135deg, #14b8a6, #0d9488);
+    }
+
+    .bg-violet {
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    }
+
     .table th {
         background: #4f46e5;
         color: white;
@@ -397,6 +424,35 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         padding: 3px 8px;
         border-radius: 20px;
         font-size: 12px;
+    }
+
+    /* SECTION SEPARATOR */
+    .section-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 4px 0;
+        border-bottom: 2px solid #e2e8f0;
+        margin: 24px 0 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* ACHAT ROW */
+    .purchase-row td {
+        font-size: 13px;
+    }
+
+    .supplier-badge {
+        background: #dbeafe;
+        color: #2563eb;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
     }
 
     .chart-card {
@@ -501,9 +557,20 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
             <a href="products/list.php">
                 <i class="bi bi-box-seam"></i> Produits
             </a>
-            <!-- ✅ Visible pour tous -->
             <a href="products/add.php">
                 <i class="bi bi-plus-circle"></i> Ajouter produit
+            </a>
+
+            <!-- ✅ SECTION ACHATS -->
+            <div class="nav-section">Achats</div>
+            <a href="purchases/add.php">
+                <i class="bi bi-bag-plus"></i> Nouvel achat
+            </a>
+            <a href="purchases/list.php">
+                <i class="bi bi-clock-history"></i> Historique achats
+            </a>
+            <a href="purchases/suppliers.php">
+                <i class="bi bi-building"></i> Fournisseurs
             </a>
 
             <div class="nav-section">Ventes</div>
@@ -511,10 +578,9 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                 <i class="bi bi-cart-plus"></i> Nouvelle vente
             </a>
             <a href="sales/list.php">
-                <i class="bi bi-clock-history"></i> Historique
+                <i class="bi bi-clock-history"></i> Historique ventes
             </a>
 
-            <!-- Administration : admin seulement -->
             <?php if(isAdmin()): ?>
             <div class="nav-section">Administration</div>
             <a href="admin/create_employee.php">
@@ -586,8 +652,11 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
     </div>
     <?php endif; ?>
 
-    <!-- STATS CARDS -->
-    <div class="row g-3">
+    <!-- ===== STATS VENTES ===== -->
+    <div class="section-title">
+        <i class="bi bi-graph-up" style="color:#6366f1;"></i> Statistiques Ventes & Stock
+    </div>
+    <div class="row g-3 mb-3">
         <div class="col-md-3">
             <div class="card-box bg-blue">
                 <h3><i class="bi bi-box"></i> <?= $stats['total_products'] ?? 0 ?></h3>
@@ -620,9 +689,39 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         </div>
     </div>
 
-    <!-- TABLEAUX -->
-    <div class="row mt-4">
+    <!-- ===== STATS ACHATS ===== -->
+    <div class="section-title">
+        <i class="bi bi-bag-check" style="color:#3b82f6;"></i> Statistiques Achats & Fournisseurs
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="card-box bg-indigo">
+                <h3><i class="bi bi-bag-check"></i> <?= $achatsStats['total_achats'] ?? 0 ?></h3>
+                <p>Produits achetés</p>
+                <small>Commandes enregistrées</small>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card-box bg-teal">
+                <h3><i class="bi bi-building"></i> <?= $totalFournisseurs ?? 0 ?></h3>
+                <p>Fournisseurs</p>
+                <small>Partenaires actifs</small>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card-box bg-violet">
+                <h3 style="font-size:18px;">
+                    <i class="bi bi-cash-stack"></i>
+                    <?= number_format($achatsStats['total_depense'] ?? 0, 0, '', ' ') ?> FCFA
+                </h3>
+                <p>Total acheté</p>
+                <small>Dépenses cumulées</small>
+            </div>
+        </div>
+    </div>
 
+    <!-- ===== TABLEAUX PRODUITS + VENTES ===== -->
+    <div class="row mt-2">
         <!-- PRODUITS RÉCENTS -->
         <div class="col-md-6">
             <div class="card p-3 h-100">
@@ -652,12 +751,10 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                             </td>
                             <td><?= number_format($row['price'], 0, '', ' ') ?></td>
                             <td>
-                                <!-- Vendre : tous -->
                                 <a href="sales/sell.php?product_id=<?= $row['id'] ?>" class="btn btn-success btn-sm"
                                     title="Vendre">
                                     <i class="bi bi-cart"></i>
                                 </a>
-                                <!-- ✅ Modifier/Supprimer : tous -->
                                 <a href="products/edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm"
                                     title="Modifier">
                                     <i class="bi bi-pencil"></i>
@@ -703,6 +800,68 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                             <td><?= date('d/m/Y H:i', strtotime($s['sold_at'])) ?></td>
                         </tr>
                         <?php } ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TABLEAU ACHATS RÉCENTS ===== -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5>🛍️ Achats récents</h5>
+                    <div class="d-flex gap-2">
+                        <a href="purchases/add.php" class="btn btn-sm btn-primary">
+                            <i class="bi bi-bag-plus"></i> Nouvel achat
+                        </a>
+                        <a href="purchases/list.php" class="btn btn-sm btn-outline-primary">Voir tout</a>
+                    </div>
+                </div>
+                <table class="table table-hover purchase-table">
+                    <thead style="background:#3b82f6;">
+                        <tr>
+                            <th style="background:#3b82f6;color:white;">Produit</th>
+                            <th style="background:#3b82f6;color:white;">Fournisseur</th>
+                            <th style="background:#3b82f6;color:white;">Téléphone</th>
+                            <th style="background:#3b82f6;color:white;">Qté</th>
+                            <th style="background:#3b82f6;color:white;">Prix unit.</th>
+                            <th style="background:#3b82f6;color:white;">Total (FCFA)</th>
+                            <th style="background:#3b82f6;color:white;">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        if($recentPurchases->num_rows === 0){
+                            echo "<tr><td colspan='7' class='text-center text-muted py-3'>
+                                    <i class='bi bi-bag-x'></i> Aucun achat enregistré
+                                  </td></tr>";
+                        }
+                        while($p = $recentPurchases->fetch_assoc()): ?>
+                        <tr class="purchase-row">
+                            <td><strong><?= htmlspecialchars($p['product_name']) ?></strong></td>
+                            <td>
+                                <span class="supplier-badge">
+                                    <i class="bi bi-building"></i>
+                                    <?= htmlspecialchars($p['supplier_name']) ?>
+                                </span>
+                            </td>
+                            <td style="color:#64748b;">
+                                <?= $p['supplier_phone'] ? htmlspecialchars($p['supplier_phone']) : '—' ?>
+                            </td>
+                            <td><?= $p['quantity'] ?></td>
+                            <td><?= number_format($p['unit_price'], 0, '', ' ') ?></td>
+                            <td>
+                                <strong style="color:#3b82f6;">
+                                    <?= number_format($p['quantity'] * $p['unit_price'], 0, '', ' ') ?>
+                                </strong>
+                            </td>
+                            <td style="color:#64748b;">
+                                <?= date('d/m/Y H:i', strtotime($p['purchased_at'])) ?>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
                     </tbody>
                 </table>
             </div>
