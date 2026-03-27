@@ -621,10 +621,10 @@ if(isset($_POST['login'])){
 
             </form>
 
-            <div class="register-link">
+            <!-- <div class="register-link">
                 Pas encore de compte ? <a href="register.php">Créer un compte</a>
             </div>
-        </div>
+        </div>-->
 
     </div>
 

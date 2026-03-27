@@ -6,8 +6,8 @@ if(!isset($_SESSION['user'])){
 }
 include('../config/db.php');
 
-// Cette page est réservée à l'admin
-requireAdmin();
+// ✅ Accessible à tous (admin + employé)
+requireLogin();
 
 // Récupérer infos complètes de l'utilisateur connecté
 $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
@@ -67,7 +67,7 @@ if(isset($_POST['add'])){
         min-height: 100vh;
     }
 
-    /* ===== SIDEBAR ===== */
+    /* SIDEBAR */
     .sidebar {
         position: fixed;
         left: 0;
@@ -149,8 +149,16 @@ if(isset($_POST['add'])){
         padding: 2px 7px;
         border-radius: 20px;
         margin-top: 3px;
+    }
+
+    .role-admin {
         background: rgba(99, 102, 241, 0.25);
         color: #a5b4fc;
+    }
+
+    .role-employee {
+        background: rgba(16, 185, 129, 0.2);
+        color: #6ee7b7;
     }
 
     .sidebar-brand {
@@ -245,7 +253,7 @@ if(isset($_POST['add'])){
     }
 
     .sidebar-footer {
-        padding: 12px 12px;
+        padding: 12px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
 
@@ -266,14 +274,14 @@ if(isset($_POST['add'])){
         color: #fca5a5;
     }
 
-    /* ===== CONTENT ===== */
+    /* CONTENT */
     .content {
         margin-left: var(--sidebar-w);
         padding: 32px;
         min-height: 100vh;
     }
 
-    /* ===== TOPBAR ===== */
+    /* TOPBAR */
     .topbar {
         display: flex;
         justify-content: space-between;
@@ -362,18 +370,26 @@ if(isset($_POST['add'])){
         margin: 3px 0 0;
     }
 
-    /* ADMIN TAG dans le header du form */
-    .admin-tag {
+    /* TAG selon le rôle */
+    .user-tag {
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        background: #ede9fe;
-        color: var(--primary);
         padding: 4px 10px;
         border-radius: 20px;
         font-size: 11px;
         font-weight: 700;
         margin-top: 6px;
+    }
+
+    .user-tag.admin {
+        background: #ede9fe;
+        color: var(--primary);
+    }
+
+    .user-tag.employee {
+        background: #d1fae5;
+        color: var(--green);
     }
 
     .form-group {
@@ -760,7 +776,7 @@ if(isset($_POST['add'])){
             <span>Gestion de stock</span>
         </div>
 
-        <!-- PROFIL ADMIN -->
+        <!-- PROFIL : admin ou employé -->
         <div class="sidebar-profile">
             <?php if(!empty($currentUser['photo'])): ?>
             <img src="../uploads/<?= htmlspecialchars($currentUser['photo']) ?>" alt="Photo">
@@ -771,7 +787,12 @@ if(isset($_POST['add'])){
             <?php endif; ?>
             <div style="overflow:hidden;">
                 <div class="sidebar-profile-name"><?= htmlspecialchars($_SESSION['user']) ?></div>
-                <div class="sidebar-profile-role">👑 Administrateur</div>
+                <!-- ✅ Badge selon le rôle réel -->
+                <?php if(isAdmin()): ?>
+                <div class="sidebar-profile-role role-admin">👑 Administrateur</div>
+                <?php else: ?>
+                <div class="sidebar-profile-role role-employee">👤 Employé</div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -781,15 +802,17 @@ if(isset($_POST['add'])){
 
             <div class="nav-section">Inventaire</div>
             <a href="list.php"><i class="bi bi-box-seam"></i> Produits</a>
+            <!-- ✅ Visible pour tous -->
             <a href="add.php" class="active">
                 <i class="bi bi-plus-circle"></i> Ajouter produit
-                <span class="admin-only-badge">Admin</span>
             </a>
 
             <div class="nav-section">Ventes</div>
             <a href="../sales/sell.php"><i class="bi bi-cart-plus"></i> Nouvelle vente</a>
             <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique</a>
 
+            <!-- Administration : admin seulement -->
+            <?php if(isAdmin()): ?>
             <div class="nav-section">Administration</div>
             <a href="../admin/create_employee.php">
                 <i class="bi bi-people"></i> Employés
@@ -799,6 +822,7 @@ if(isset($_POST['add'])){
                 <i class="bi bi-person-circle"></i> Mon profil
                 <span class="admin-only-badge">Admin</span>
             </a>
+            <?php endif; ?>
         </nav>
 
         <div class="sidebar-footer">
@@ -847,9 +871,16 @@ if(isset($_POST['add'])){
                     <div>
                         <h4>Nouveau produit</h4>
                         <p>Remplissez les champs ci-dessous</p>
-                        <div class="admin-tag">
-                            <i class="bi bi-shield-fill"></i> Accès administrateur uniquement
+                        <!-- ✅ TAG selon le rôle -->
+                        <?php if(isAdmin()): ?>
+                        <div class="user-tag admin">
+                            <i class="bi bi-shield-fill"></i> Administrateur
                         </div>
+                        <?php else: ?>
+                        <div class="user-tag employee">
+                            <i class="bi bi-person-fill"></i> Employé
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 

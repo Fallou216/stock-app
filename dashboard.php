@@ -76,7 +76,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         background: #f4f6f9;
     }
 
-    /* ===== SIDEBAR ===== */
     .sidebar {
         position: fixed;
         width: 240px;
@@ -101,7 +100,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         pointer-events: none;
     }
 
-    /* PROFIL dans sidebar */
     .sidebar-profile {
         margin: 0 12px 16px;
         background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.05));
@@ -173,7 +171,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         color: #6ee7b7;
     }
 
-    /* NAV SECTIONS */
     .nav-section {
         font-size: 10px;
         font-weight: 700;
@@ -232,7 +229,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         color: #6366f1;
     }
 
-    /* BADGE ADMIN dans le nav */
     .admin-only-badge {
         font-size: 9px;
         font-weight: 700;
@@ -265,13 +261,11 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         color: #fca5a5;
     }
 
-    /* CONTENT */
     .content {
         margin-left: 250px;
         padding: 20px;
     }
 
-    /* TOPBAR */
     .topbar {
         background: white;
         padding: 14px 18px;
@@ -312,7 +306,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         font-weight: 500;
     }
 
-    /* AVATAR topbar */
     .topbar-avatar img {
         width: 40px;
         height: 40px;
@@ -354,7 +347,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         color: #059669;
     }
 
-    /* STATS CARDS */
     .card-box {
         border-radius: 15px;
         padding: 20px;
@@ -407,7 +399,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         font-size: 12px;
     }
 
-    /* CHARTS */
     .chart-card {
         background: white;
         border-radius: 15px;
@@ -430,7 +421,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         height: 220px;
     }
 
-    /* ADMIN SECTION BANNER */
     .admin-banner {
         background: linear-gradient(135deg, #4f46e5, #7c3aed);
         border-radius: 14px;
@@ -475,13 +465,13 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
 
 <body>
 
-    <!-- ===== SIDEBAR ===== -->
+    <!-- SIDEBAR -->
     <div class="sidebar">
         <div class="text-center px-3 pt-2 pb-2">
             <h4>📦 Stock App</h4>
         </div>
 
-        <!-- PROFIL UTILISATEUR -->
+        <!-- PROFIL -->
         <div class="sidebar-profile">
             <?php if(!empty($currentUser['photo'])): ?>
             <img src="uploads/<?= htmlspecialchars($currentUser['photo']) ?>" alt="Photo">
@@ -511,13 +501,10 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
             <a href="products/list.php">
                 <i class="bi bi-box-seam"></i> Produits
             </a>
-
-            <?php if(isAdmin()): ?>
+            <!-- ✅ Visible pour tous -->
             <a href="products/add.php">
                 <i class="bi bi-plus-circle"></i> Ajouter produit
-                <span class="admin-only-badge">Admin</span>
             </a>
-            <?php endif; ?>
 
             <div class="nav-section">Ventes</div>
             <a href="sales/sell.php">
@@ -527,6 +514,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                 <i class="bi bi-clock-history"></i> Historique
             </a>
 
+            <!-- Administration : admin seulement -->
             <?php if(isAdmin()): ?>
             <div class="nav-section">Administration</div>
             <a href="admin/create_employee.php">
@@ -547,7 +535,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         </div>
     </div>
 
-    <!-- ===== CONTENT ===== -->
+    <!-- CONTENT -->
     <div class="content">
 
         <!-- TOPBAR -->
@@ -557,19 +545,14 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                 <p>Voici un aperçu de votre activité</p>
             </div>
             <div class="topbar-right">
-                <!-- Badge rôle -->
                 <?php if(isAdmin()): ?>
                 <span class="topbar-role-badge admin">👑 Admin</span>
                 <?php else: ?>
                 <span class="topbar-role-badge employee">👤 Employé</span>
                 <?php endif; ?>
-
-                <!-- Date -->
                 <div class="topbar-date">
                     <i class="bi bi-calendar3"></i> <?= date('d M Y') ?>
                 </div>
-
-                <!-- Avatar cliquable (admin → profil, employé → rien) -->
                 <?php if(isAdmin()): ?>
                 <a href="admin/profile.php" class="topbar-avatar" title="Mon profil">
                     <?php else: ?>
@@ -590,7 +573,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         </div>
     </div>
 
-    <!-- BANNIÈRE ADMIN (visible uniquement pour l'admin) -->
+    <!-- BANNIÈRE ADMIN -->
     <?php if(isAdmin()): ?>
     <div class="admin-banner">
         <div>
@@ -619,7 +602,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         </div>
         <div class="col-md-3">
             <div class="card-box bg-orange">
-                <!-- Utilisateurs visible uniquement pour admin -->
                 <?php if(isAdmin()): ?>
                 <h3><i class="bi bi-people"></i> <?= $userCount ?? 0 ?></h3>
                 <p>Utilisateurs</p>
@@ -638,7 +620,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         </div>
     </div>
 
-    <!-- TABLEAUX PRODUITS + VENTES -->
+    <!-- TABLEAUX -->
     <div class="row mt-4">
 
         <!-- PRODUITS RÉCENTS -->
@@ -670,21 +652,20 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                             </td>
                             <td><?= number_format($row['price'], 0, '', ' ') ?></td>
                             <td>
-                                <!-- Bouton vendre : tous -->
+                                <!-- Vendre : tous -->
                                 <a href="sales/sell.php?product_id=<?= $row['id'] ?>" class="btn btn-success btn-sm"
                                     title="Vendre">
                                     <i class="bi bi-cart"></i>
                                 </a>
-                                <!-- Modifier/Supprimer : admin seulement -->
-                                <?php if(isAdmin()): ?>
-                                <a href="products/edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm">
+                                <!-- ✅ Modifier/Supprimer : tous -->
+                                <a href="products/edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm"
+                                    title="Modifier">
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 <a href="products/delete.php?id=<?= $row['id'] ?>" class="btn btn-danger btn-sm"
-                                    onclick="return confirm('Supprimer ce produit ?')">
+                                    onclick="return confirm('Supprimer ce produit ?')" title="Supprimer">
                                     <i class="bi bi-trash"></i>
                                 </a>
-                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php } ?>
@@ -726,10 +707,9 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                 </table>
             </div>
         </div>
-
     </div>
 
-    <!-- DIAGRAMMES EN BAS -->
+    <!-- DIAGRAMMES -->
     <div class="row g-3 mt-3 mb-4">
         <div class="col-md-4">
             <div class="chart-card">
@@ -759,7 +739,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
 
     </div>
 
-    <!-- SCRIPTS -->
     <script>
     document.getElementById("searchProducts").addEventListener("keyup", function() {
         let value = this.value.toLowerCase();

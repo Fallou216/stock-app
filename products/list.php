@@ -28,7 +28,6 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         background: #f4f6f9;
     }
 
-    /* SIDEBAR */
     .sidebar {
         position: fixed;
         width: 230px;
@@ -53,7 +52,6 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         pointer-events: none;
     }
 
-    /* PROFIL sidebar */
     .sidebar-profile {
         margin: 0 10px 14px;
         background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.05));
@@ -211,7 +209,6 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         color: #fca5a5;
     }
 
-    /* CONTENT */
     .content {
         margin-left: 240px;
         padding: 20px;
@@ -251,34 +248,6 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         font-size: 12px;
         font-weight: 600;
     }
-
-    /* BANNIÈRE ACCÈS RESTREINT pour employé */
-    .employee-banner {
-        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
-        border: 1.5px solid #bbf7d0;
-        border-radius: 12px;
-        padding: 14px 18px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 20px;
-    }
-
-    .employee-banner i {
-        font-size: 22px;
-        color: #10b981;
-    }
-
-    .employee-banner p {
-        margin: 0;
-        font-size: 13px;
-        color: #065f46;
-        font-weight: 500;
-    }
-
-    .employee-banner strong {
-        color: #047857;
-    }
     </style>
 </head>
 
@@ -315,18 +284,16 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
 
             <div class="nav-section">Inventaire</div>
             <a href="list.php" class="active"><i class="bi bi-box-seam"></i> Produits</a>
-
-            <?php if(isAdmin()): ?>
+            <!-- ✅ Visible pour tous -->
             <a href="add.php">
                 <i class="bi bi-plus-circle"></i> Ajouter produit
-                <span class="admin-only-badge">Admin</span>
             </a>
-            <?php endif; ?>
 
             <div class="nav-section">Ventes</div>
             <a href="../sales/sell.php"><i class="bi bi-cart-plus"></i> Nouvelle vente</a>
             <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique</a>
 
+            <!-- Administration : admin seulement -->
             <?php if(isAdmin()): ?>
             <div class="nav-section">Administration</div>
             <a href="../admin/create_employee.php">
@@ -357,28 +324,15 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         <?php endif; ?>
         <?php endif; ?>
 
-        <!-- BANNIÈRE EMPLOYÉ (info accès restreint) -->
-        <?php if(isEmployee()): ?>
-        <div class="employee-banner">
-            <i class="bi bi-info-circle-fill"></i>
-            <p>
-                <strong>Mode consultation</strong> — Vous pouvez consulter les produits et enregistrer des ventes.
-                La modification et la suppression sont réservées à l'administrateur.
-            </p>
-        </div>
-        <?php endif; ?>
-
         <!-- HEADER -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h3>📦 Liste des produits</h3>
             <div class="d-flex gap-2">
                 <input type="text" id="search" class="form-control search-box" placeholder="Rechercher...">
-                <!-- Bouton Ajouter : admin seulement -->
-                <?php if(isAdmin()): ?>
+                <!-- ✅ Bouton Ajouter visible pour tous -->
                 <a href="add.php" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> Ajouter
                 </a>
-                <?php endif; ?>
             </div>
         </div>
 
@@ -443,7 +397,7 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
                             <?php endif; ?>
                         </td>
                         <td>
-                            <!-- VENDRE : tout le monde -->
+                            <!-- VENDRE : tous -->
                             <?php if($row['quantity'] > 0): ?>
                             <a href="../sales/sell.php?product_id=<?= $row['id'] ?>" class="btn btn-success btn-sm"
                                 title="Vendre">
@@ -455,8 +409,7 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
                             </button>
                             <?php endif; ?>
 
-                            <!-- MODIFIER + SUPPRIMER : admin seulement -->
-                            <?php if(isAdmin()): ?>
+                            <!-- ✅ MODIFIER + SUPPRIMER : tous -->
                             <a href="edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm" title="Modifier">
                                 <i class="bi bi-pencil"></i>
                             </a>
@@ -464,7 +417,6 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
                                 onclick="return confirm('Supprimer ce produit ?')" title="Supprimer">
                                 <i class="bi bi-trash"></i>
                             </a>
-                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endwhile; ?>
