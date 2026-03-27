@@ -41,6 +41,26 @@ CREATE TABLE sales (
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
 
+-- Table fournisseurs
+CREATE TABLE suppliers (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    phone      VARCHAR(20)  DEFAULT NULL,
+    email      VARCHAR(100) DEFAULT NULL,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table achats
+CREATE TABLE purchases (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    product_id    INT            NOT NULL,
+    supplier_id   INT            NOT NULL,
+    quantity      INT            NOT NULL,
+    unit_price    DECIMAL(10,2)  NOT NULL,
+    purchased_at  TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id)  REFERENCES products(id)  ON DELETE CASCADE,
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
+);
 -- ============================================
 -- COMPTE ADMIN PAR DÉFAUT
 -- Email    : admin@stock.com
