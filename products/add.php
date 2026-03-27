@@ -5,23 +5,32 @@ if(!isset($_SESSION['user'])){
     exit();
 }
 include('../config/db.php');
-
-// ✅ Accessible à tous (admin + employé)
 requireLogin();
 
-// Récupérer infos complètes de l'utilisateur connecté
 $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
 
-$message = "";
+$message      = "";
+$existing_qty = 0;
 
 if(isset($_POST['add'])){
-    $n = trim($_POST['name']);
+    $n = trim($conn->real_escape_string($_POST['name']));
     $q = intval($_POST['quantity']);
     $p = floatval($_POST['price']);
 
     if(!empty($n) && $q > 0 && $p > 0){
-        $conn->query("INSERT INTO products(name,quantity,price) VALUES('$n','$q','$p')");
-        $message = "success";
+        // Vérifier si le produit existe déjà (insensible à la casse)
+        $check = $conn->query("SELECT * FROM products WHERE LOWER(name) = LOWER('$n')");
+        if($check->num_rows > 0){
+            // Produit existe → incrémenter
+            $existing     = $check->fetch_assoc();
+            $existing_qty = $existing['quantity'] + $q;
+            $conn->query("UPDATE products SET quantity = quantity + $q WHERE id = {$existing['id']}");
+            $message = "incremented";
+        } else {
+            // Nouveau produit → insérer
+            $conn->query("INSERT INTO products(name,quantity,price) VALUES('$n','$q','$p')");
+            $message = "success";
+        }
     } else {
         $message = "error";
     }
@@ -37,7 +46,6 @@ if(isset($_POST['add'])){
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
-
     <style>
     *,
     *::before,
@@ -50,11 +58,8 @@ if(isset($_POST['add'])){
     :root {
         --sidebar-w: 260px;
         --dark: #0f172a;
-        --dark2: #1e293b;
         --gray: #64748b;
-        --light: #f8fafc;
         --border: #e2e8f0;
-        --white: #ffffff;
         --primary: #6366f1;
         --green: #10b981;
         --red: #ef4444;
@@ -93,7 +98,36 @@ if(isset($_POST['add'])){
         pointer-events: none;
     }
 
-    /* PROFIL sidebar */
+    .sidebar-brand {
+        padding: 20px 24px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .brand-icon {
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, var(--primary), #818cf8);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        margin-bottom: 10px;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+    }
+
+    .sidebar-brand h4 {
+        color: white;
+        font-size: 16px;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .sidebar-brand span {
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 11px;
+    }
+
     .sidebar-profile {
         margin: 0 12px 14px;
         background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.05));
@@ -159,36 +193,6 @@ if(isset($_POST['add'])){
     .role-employee {
         background: rgba(16, 185, 129, 0.2);
         color: #6ee7b7;
-    }
-
-    .sidebar-brand {
-        padding: 20px 24px 14px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .brand-icon {
-        width: 44px;
-        height: 44px;
-        background: linear-gradient(135deg, var(--primary), #818cf8);
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        margin-bottom: 10px;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-    }
-
-    .sidebar-brand h4 {
-        color: white;
-        font-size: 16px;
-        font-weight: 700;
-        margin: 0;
-    }
-
-    .sidebar-brand span {
-        color: rgba(255, 255, 255, 0.4);
-        font-size: 11px;
     }
 
     .sidebar-nav {
@@ -281,7 +285,6 @@ if(isset($_POST['add'])){
         min-height: 100vh;
     }
 
-    /* TOPBAR */
     .topbar {
         display: flex;
         justify-content: space-between;
@@ -320,7 +323,6 @@ if(isset($_POST['add'])){
         text-decoration: underline;
     }
 
-    /* LAYOUT */
     .add-layout {
         display: grid;
         grid-template-columns: 1fr 340px;
@@ -328,7 +330,6 @@ if(isset($_POST['add'])){
         align-items: start;
     }
 
-    /* FORM CARD */
     .form-card {
         background: white;
         border-radius: 20px;
@@ -370,7 +371,6 @@ if(isset($_POST['add'])){
         margin: 3px 0 0;
     }
 
-    /* TAG selon le rôle */
     .user-tag {
         display: inline-flex;
         align-items: center;
@@ -702,21 +702,23 @@ if(isset($_POST['add'])){
         font-size: 13px;
     }
 
-    /* ALERT */
+    /* ALERTS */
     .alert-msg {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 14px 18px;
-        border-radius: 12px;
+        gap: 12px;
+        padding: 16px 20px;
+        border-radius: 14px;
         font-size: 14px;
         font-weight: 600;
         margin-bottom: 24px;
         animation: slideDown 0.3s ease;
+        line-height: 1.5;
     }
 
     .alert-msg i {
-        font-size: 18px;
+        font-size: 22px;
+        flex-shrink: 0;
     }
 
     .alert-msg.success {
@@ -729,6 +731,12 @@ if(isset($_POST['add'])){
         background: #fef2f2;
         color: #dc2626;
         border: 1.5px solid #fecaca;
+    }
+
+    .alert-msg.warning {
+        background: #fffbeb;
+        color: #d97706;
+        border: 1.5px solid #fde68a;
     }
 
     @keyframes slideDown {
@@ -776,7 +784,6 @@ if(isset($_POST['add'])){
             <span>Gestion de stock</span>
         </div>
 
-        <!-- PROFIL : admin ou employé -->
         <div class="sidebar-profile">
             <?php if(!empty($currentUser['photo'])): ?>
             <img src="../uploads/<?= htmlspecialchars($currentUser['photo']) ?>" alt="Photo">
@@ -787,7 +794,6 @@ if(isset($_POST['add'])){
             <?php endif; ?>
             <div style="overflow:hidden;">
                 <div class="sidebar-profile-name"><?= htmlspecialchars($_SESSION['user']) ?></div>
-                <!-- ✅ Badge selon le rôle réel -->
                 <?php if(isAdmin()): ?>
                 <div class="sidebar-profile-role role-admin">👑 Administrateur</div>
                 <?php else: ?>
@@ -802,7 +808,6 @@ if(isset($_POST['add'])){
 
             <div class="nav-section">Inventaire</div>
             <a href="list.php"><i class="bi bi-box-seam"></i> Produits</a>
-            <!-- ✅ Visible pour tous -->
             <a href="add.php" class="active">
                 <i class="bi bi-plus-circle"></i> Ajouter produit
             </a>
@@ -811,7 +816,6 @@ if(isset($_POST['add'])){
             <a href="../sales/sell.php"><i class="bi bi-cart-plus"></i> Nouvelle vente</a>
             <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique</a>
 
-            <!-- Administration : admin seulement -->
             <?php if(isAdmin()): ?>
             <div class="nav-section">Administration</div>
             <a href="../admin/create_employee.php">
@@ -833,7 +837,6 @@ if(isset($_POST['add'])){
     <!-- CONTENT -->
     <div class="content">
 
-        <!-- TOPBAR -->
         <div class="topbar">
             <div>
                 <h5>➕ Ajouter un produit</h5>
@@ -848,16 +851,26 @@ if(isset($_POST['add'])){
             </div>
         </div>
 
-        <!-- ALERT -->
+        <!-- ALERTS -->
         <?php if($message === 'success'): ?>
         <div class="alert-msg success" id="alertMsg">
             <i class="bi bi-check-circle-fill"></i>
-            Produit ajouté avec succès ! Il est maintenant disponible dans votre stock.
+            <span>Produit ajouté avec succès ! Il est maintenant disponible dans votre stock.</span>
         </div>
+
+        <?php elseif($message === 'incremented'): ?>
+        <div class="alert-msg warning" id="alertMsg">
+            <i class="bi bi-arrow-up-circle-fill"></i>
+            <span>
+                Ce produit existe déjà ! La quantité a été incrémentée automatiquement.<br>
+                <strong>Nouveau stock : <?= $existing_qty ?> unité(s)</strong>
+            </span>
+        </div>
+
         <?php elseif($message === 'error'): ?>
         <div class="alert-msg error" id="alertMsg">
             <i class="bi bi-x-circle-fill"></i>
-            Veuillez remplir tous les champs correctement (quantité et prix &gt; 0).
+            <span>Veuillez remplir tous les champs correctement (quantité et prix &gt; 0).</span>
         </div>
         <?php endif; ?>
 
@@ -871,7 +884,6 @@ if(isset($_POST['add'])){
                     <div>
                         <h4>Nouveau produit</h4>
                         <p>Remplissez les champs ci-dessous</p>
-                        <!-- ✅ TAG selon le rôle -->
                         <?php if(isAdmin()): ?>
                         <div class="user-tag admin">
                             <i class="bi bi-shield-fill"></i> Administrateur
@@ -885,6 +897,7 @@ if(isset($_POST['add'])){
                 </div>
 
                 <form method="POST" id="addForm">
+
                     <div class="form-group">
                         <label>
                             <i class="bi bi-tag"></i>
@@ -895,7 +908,9 @@ if(isset($_POST['add'])){
                             <input type="text" name="name" id="inputName"
                                 placeholder="Ex: Chaussure Nike, Parfum Rose..." autocomplete="off" required>
                         </div>
-                        <div class="input-hint"><i class="bi bi-info-circle"></i> Donnez un nom clair et descriptif
+                        <div class="input-hint">
+                            <i class="bi bi-info-circle"></i>
+                            Si le produit existe déjà, la quantité sera automatiquement incrémentée
                         </div>
                     </div>
 
@@ -910,7 +925,10 @@ if(isset($_POST['add'])){
                             <i class="bi bi-stack input-icon"></i>
                             <input type="number" name="quantity" id="inputQty" placeholder="Ex: 50" min="1" required>
                         </div>
-                        <div class="input-hint"><i class="bi bi-info-circle"></i> Nombre d'unités disponibles</div>
+                        <div class="input-hint">
+                            <i class="bi bi-info-circle"></i>
+                            Nombre d'unités à ajouter au stock
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -926,17 +944,23 @@ if(isset($_POST['add'])){
                             <i class="bi bi-check-circle-fill"></i>
                             <span id="pricePreviewText"></span>
                         </div>
-                        <div class="input-hint"><i class="bi bi-info-circle"></i> Prix en Francs CFA (FCFA)</div>
+                        <div class="input-hint">
+                            <i class="bi bi-info-circle"></i>
+                            Prix en Francs CFA (FCFA)
+                        </div>
                     </div>
 
                     <hr class="form-divider">
 
                     <button type="submit" name="add" class="btn-add">
-                        <i class="bi bi-plus-circle-fill"></i> Ajouter le produit
+                        <i class="bi bi-plus-circle-fill"></i>
+                        Ajouter le produit
                     </button>
                     <button type="reset" class="btn-reset" onclick="resetPreview()">
-                        <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                        Réinitialiser
                     </button>
+
                 </form>
             </div>
 
@@ -957,17 +981,17 @@ if(isset($_POST['add'])){
                 <div class="tips-card">
                     <h6>💡 Conseils</h6>
                     <div class="tip-item">
-                        <div class="tip-icon"><i class="bi bi-tag"></i></div>
+                        <div class="tip-icon"><i class="bi bi-arrow-up-circle"></i></div>
                         <div class="tip-text">
-                            <strong>Nom du produit</strong>
-                            Soyez précis : marque, type, taille si nécessaire.
+                            <strong>Produit existant ?</strong>
+                            Si le nom existe déjà, la quantité est automatiquement ajoutée au stock existant.
                         </div>
                     </div>
                     <div class="tip-item">
                         <div class="tip-icon"><i class="bi bi-stack"></i></div>
                         <div class="tip-text">
                             <strong>Quantité</strong>
-                            Entrez le stock initial disponible à la vente.
+                            Entrez le nombre d'unités à ajouter au stock.
                         </div>
                     </div>
                     <div class="tip-item">
@@ -1027,6 +1051,7 @@ if(isset($_POST['add'])){
         pricePreview.classList.remove('visible');
     }
 
+    // Disparition alertes après 10s
     setTimeout(function() {
         const alert = document.getElementById('alertMsg');
         if (alert) {
