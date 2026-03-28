@@ -621,43 +621,62 @@ if(isset($_POST['login'])){
 
             </form>
 
+
             <!-- <div class="register-link">
                 Pas encore de compte ? <a href="register.php">Créer un compte</a>
             </div>
         </div>-->
+        
+            <!-- Mot de passe oublié -->
+            <div style="text-align:center; margin:20px 0 10px;">
+                <a href="forgot_password.php" style="
+           display:inline-block;
+           font-size:14px;
+           color:var(--primary);
+           font-weight:600;
+           text-decoration:none;
+           padding:8px 16px;
+           border-radius:8px;
+           transition:all 0.3s ease;
+       " onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
+                    Mot de passe oublié ?
+                </a>
+            </div>
 
-    </div>
+        </div>
 
-    <script>
-    // Toggle mot de passe
-    function togglePass() {
-        const input = document.getElementById('password');
-        const icon = document.getElementById('eyeIcon');
-        const show = input.type === 'password';
-        input.type = show ? 'text' : 'password';
-        icon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
-    }
 
-    // Tabs visuels (informatif — le rôle est détecté automatiquement en BDD)
-    function setTab(role) {
-        document.getElementById('tabAdmin').classList.toggle('active', role === 'admin');
-        document.getElementById('tabEmployee').classList.toggle('active', role === 'employee');
-        // Changer le placeholder email selon le tab
-        const input = document.getElementById('emailInput');
-        input.placeholder = role === 'admin' ? 'admin@stock.com' : 'employe@email.com';
-    }
 
-    // Disparition alertes après 10s
-    setTimeout(function() {
-        document.querySelectorAll('.alert-msg').forEach(function(el) {
-            el.style.transition = 'opacity 0.8s ease';
-            el.style.opacity = '0';
-            setTimeout(function() {
-                el.remove();
-            }, 800);
-        });
-    }, 10000);
-    </script>
+        <script>
+        // Toggle mot de passe
+        function togglePass() {
+            const input = document.getElementById('password');
+            const icon = document.getElementById('eyeIcon');
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            icon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+        }
+
+        // Tabs visuels (informatif — le rôle est détecté automatiquement en BDD)
+        function setTab(role) {
+            document.getElementById('tabAdmin').classList.toggle('active', role === 'admin');
+            document.getElementById('tabEmployee').classList.toggle('active', role === 'employee');
+            // Changer le placeholder email selon le tab
+            const input = document.getElementById('emailInput');
+            input.placeholder = role === 'admin' ? 'admin@stock.com' : 'employe@email.com';
+        }
+
+        // Disparition alertes après 10s
+        setTimeout(function() {
+            document.querySelectorAll('.alert-msg').forEach(function(el) {
+                el.style.transition = 'opacity 0.8s ease';
+                el.style.opacity = '0';
+                setTimeout(function() {
+                    el.remove();
+                }, 800);
+            });
+        }, 10000);
+        </script>
 
 </body>
 
