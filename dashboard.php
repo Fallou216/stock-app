@@ -5,7 +5,8 @@ if(!isset($_SESSION['user'])){
     exit();
 }
 
-include('config/db.php');
+// ✅ config/db.php chargé UNE SEULE FOIS
+include_once('config/db.php');
 
 // Stats produits
 $productRes = $conn->query("SELECT COUNT(*) AS total_products, SUM(quantity * price) AS total_value FROM products");
@@ -19,7 +20,7 @@ $userCount = $userRes->fetch_assoc()['total_users'];
 $salesRes = $conn->query("SELECT COUNT(*) AS total_sales, SUM(quantity_sold * sale_price) AS total_revenue FROM sales");
 $salesStats = $salesRes->fetch_assoc();
 
-// ✅ Stats achats
+// Stats achats
 $achatsRes         = $conn->query("SELECT COUNT(*) AS total_achats, SUM(quantity * unit_price) AS total_depense FROM purchases");
 $achatsStats       = $achatsRes->fetch_assoc();
 $totalFournisseurs = $conn->query("SELECT COUNT(*) AS c FROM suppliers")->fetch_assoc()['c'];
@@ -36,7 +37,7 @@ $recentSales = $conn->query("
     LIMIT 5
 ");
 
-// ✅ Achats récents
+// Achats récents
 $recentPurchases = $conn->query("
     SELECT p.*, pr.name AS product_name, s.name AS supplier_name, s.phone AS supplier_phone
     FROM purchases p
@@ -70,8 +71,22 @@ while($r = $barData->fetch_assoc()){
     $barValues[] = (float)$r['revenu'];
 }
 
-// Récupérer infos complètes de l'utilisateur connecté
+// Infos utilisateur connecté
 $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
+
+// ✅ Compteur notifications non lues
+$bellCount = 0;
+$bellRes = $conn->query("SELECT COUNT(*) AS c FROM notifications WHERE type='stock_alert' AND is_read=0");
+if($bellRes) $bellCount = $bellRes->fetch_assoc()['c'];
+
+// ✅ Vérification automatique du stock (génère notifications)
+define('SKIP_STOCK_CHECK', false);
+if(file_exists('notifications/check.php')){
+    include_once 'notifications/check.php';
+    // Re-compter après vérification
+    $bellRes2 = $conn->query("SELECT COUNT(*) AS c FROM notifications WHERE type='stock_alert' AND is_read=0");
+    if($bellRes2) $bellCount = $bellRes2->fetch_assoc()['c'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -91,6 +106,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         background: #f4f6f9;
     }
 
+    /* SIDEBAR */
     .sidebar {
         position: fixed;
         width: 240px;
@@ -254,6 +270,44 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         margin-left: auto;
     }
 
+    /* BADGE NOTIFICATION SIDEBAR */
+    .notif-badge {
+        background: #ef4444;
+        color: white;
+        padding: 1px 7px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 700;
+        margin-left: auto;
+        animation: pulse-badge 2s infinite;
+    }
+
+    @keyframes pulse-badge {
+
+        0%,
+        100% {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+        }
+
+        50% {
+            box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
+        }
+    }
+
+    .sidebar-notif-link {
+        background: rgba(239, 68, 68, 0.08) !important;
+        border: 1px solid rgba(239, 68, 68, 0.2) !important;
+    }
+
+    .sidebar-notif-link i {
+        color: #ef4444 !important;
+    }
+
+    .sidebar-notif-link:hover {
+        background: rgba(239, 68, 68, 0.15) !important;
+        color: #fca5a5 !important;
+    }
+
     .sidebar-footer {
         padding: 12px 8px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -276,11 +330,13 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         color: #fca5a5;
     }
 
+    /* CONTENT */
     .content {
         margin-left: 250px;
         padding: 20px;
     }
 
+    /* TOPBAR */
     .topbar {
         background: white;
         padding: 14px 18px;
@@ -319,6 +375,57 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         color: #64748b;
         border: 1px solid #e2e8f0;
         font-weight: 500;
+    }
+
+    /* CLOCHE TOPBAR */
+    .topbar-bell {
+        position: relative;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        color: #64748b;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .topbar-bell:hover {
+        background: #fee2e2;
+        color: #ef4444;
+        border-color: #fecaca;
+    }
+
+    .topbar-bell i {
+        font-size: 18px;
+    }
+
+    .topbar-bell .bell-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #ef4444;
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+        animation: pulse-badge 2s infinite;
+    }
+
+    .topbar-bell.has-notif {
+        background: #fff0f0;
+        border-color: #fecaca;
+        color: #ef4444;
     }
 
     .topbar-avatar img {
@@ -362,6 +469,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         color: #059669;
     }
 
+    /* CARDS */
     .card-box {
         border-radius: 15px;
         padding: 20px;
@@ -401,6 +509,71 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         background: linear-gradient(135deg, #8b5cf6, #7c3aed);
     }
 
+    .bg-red {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
+    /* ALERTE STOCK BANNER */
+    .stock-alert-banner {
+        background: linear-gradient(135deg, #fee2e2, #fef2f2);
+        border: 1.5px solid #fecaca;
+        border-radius: 14px;
+        padding: 14px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .stock-alert-banner-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .stock-alert-banner-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #ef4444;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .stock-alert-banner h6 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+        color: #991b1b;
+    }
+
+    .stock-alert-banner p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: #dc2626;
+    }
+
+    .stock-alert-banner a {
+        background: #ef4444;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+
+    .stock-alert-banner a:hover {
+        background: #dc2626;
+        color: white;
+    }
+
     .table th {
         background: #4f46e5;
         color: white;
@@ -426,7 +599,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         font-size: 12px;
     }
 
-    /* SECTION SEPARATOR */
     .section-title {
         font-size: 13px;
         font-weight: 700;
@@ -441,7 +613,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         gap: 8px;
     }
 
-    /* ACHAT ROW */
     .purchase-row td {
         font-size: 13px;
     }
@@ -521,7 +692,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
 
 <body>
 
-    <!-- SIDEBAR -->
+    <!-- ===== SIDEBAR ===== -->
     <div class="sidebar">
         <div class="text-center px-3 pt-2 pb-2">
             <h4>📦 Stock App</h4>
@@ -561,7 +732,6 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                 <i class="bi bi-plus-circle"></i> Ajouter produit
             </a>
 
-            <!-- ✅ SECTION ACHATS -->
             <div class="nav-section">Achats</div>
             <a href="purchases/add.php">
                 <i class="bi bi-bag-plus"></i> Nouvel achat
@@ -579,6 +749,16 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
             </a>
             <a href="sales/list.php">
                 <i class="bi bi-clock-history"></i> Historique ventes
+            </a>
+
+            <!-- ✅ NOTIFICATIONS avec cloche animée -->
+            <div class="nav-section">Alertes</div>
+            <a href="notifications/index.php" class="<?= $bellCount > 0 ? 'sidebar-notif-link' : '' ?>">
+                <i class="bi bi-bell<?= $bellCount > 0 ? '-fill' : '' ?>"></i>
+                Notifications
+                <?php if($bellCount > 0): ?>
+                <span class="notif-badge"><?= $bellCount > 9 ? '9+' : $bellCount ?></span>
+                <?php endif; ?>
             </a>
 
             <?php if(isAdmin()): ?>
@@ -601,7 +781,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         </div>
     </div>
 
-    <!-- CONTENT -->
+    <!-- ===== CONTENT ===== -->
     <div class="content">
 
         <!-- TOPBAR -->
@@ -611,14 +791,27 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                 <p>Voici un aperçu de votre activité</p>
             </div>
             <div class="topbar-right">
+
                 <?php if(isAdmin()): ?>
                 <span class="topbar-role-badge admin">👑 Admin</span>
                 <?php else: ?>
                 <span class="topbar-role-badge employee">👤 Employé</span>
                 <?php endif; ?>
+
                 <div class="topbar-date">
                     <i class="bi bi-calendar3"></i> <?= date('d M Y') ?>
                 </div>
+
+                <!-- ✅ CLOCHE NOTIFICATIONS TOPBAR -->
+                <a href="notifications/index.php" class="topbar-bell <?= $bellCount > 0 ? 'has-notif' : '' ?>"
+                    title="<?= $bellCount > 0 ? "$bellCount notification(s) non lue(s)" : 'Notifications' ?>">
+                    <i class="bi bi-bell<?= $bellCount > 0 ? '-fill' : '' ?>"></i>
+                    <?php if($bellCount > 0): ?>
+                    <span class="bell-badge"><?= $bellCount > 9 ? '9+' : $bellCount ?></span>
+                    <?php endif; ?>
+                </a>
+
+                <!-- AVATAR -->
                 <?php if(isAdmin()): ?>
                 <a href="admin/profile.php" class="topbar-avatar" title="Mon profil">
                     <?php else: ?>
@@ -636,8 +829,40 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                 <?php else: ?>
             </div>
             <?php endif; ?>
+
         </div>
     </div>
+
+    <!-- ✅ BANNIÈRE ALERTE STOCK (si notifications non lues) -->
+    <?php if($bellCount > 0): ?>
+    <?php
+    $alertProds = $conn->query("
+        SELECT p.name, p.quantity
+        FROM products p
+        WHERE p.quantity <= 5
+        ORDER BY p.quantity ASC
+        LIMIT 3
+    ");
+    $alertNames = [];
+    while($ap = $alertProds->fetch_assoc()){
+        $alertNames[] = ($ap['quantity'] == 0 ? '❌' : '⚠️') . ' ' . $ap['name'];
+    }
+    ?>
+    <div class="stock-alert-banner">
+        <div class="stock-alert-banner-left">
+            <div class="stock-alert-banner-icon">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            </div>
+            <div>
+                <h6>🚨 Alerte Stock — <?= $bellCount ?> notification(s) non lue(s)</h6>
+                <p><?= implode(' · ', $alertNames) ?><?= count($alertNames) < $bellCount ? ' · et plus...' : '' ?></p>
+            </div>
+        </div>
+        <a href="notifications/index.php">
+            <i class="bi bi-bell-fill"></i> Voir les alertes
+        </a>
+    </div>
+    <?php endif; ?>
 
     <!-- BANNIÈRE ADMIN -->
     <?php if(isAdmin()): ?>
@@ -652,7 +877,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
     </div>
     <?php endif; ?>
 
-    <!-- ===== STATS VENTES ===== -->
+    <!-- STATS VENTES -->
     <div class="section-title">
         <i class="bi bi-graph-up" style="color:#6366f1;"></i> Statistiques Ventes & Stock
     </div>
@@ -689,7 +914,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         </div>
     </div>
 
-    <!-- ===== STATS ACHATS ===== -->
+    <!-- STATS ACHATS -->
     <div class="section-title">
         <i class="bi bi-bag-check" style="color:#3b82f6;"></i> Statistiques Achats & Fournisseurs
     </div>
@@ -720,7 +945,29 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         </div>
     </div>
 
-    <!-- ===== TABLEAUX PRODUITS + VENTES ===== -->
+    <!-- STAT NOTIFICATIONS si alertes -->
+    <?php if($bellCount > 0): ?>
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <div class="card-box bg-red" style="cursor:pointer;" onclick="window.location='notifications/index.php'">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 style="margin:0;font-size:20px;">
+                            <i class="bi bi-bell-fill"></i> <?= $bellCount ?>
+                            alerte<?= $bellCount > 1 ? 's' : '' ?> stock non lue<?= $bellCount > 1 ? 's' : '' ?>
+                        </h4>
+                        <p style="margin:4px 0 0;opacity:0.85;font-size:13px;">
+                            Cliquez pour consulter et gérer les alertes
+                        </p>
+                    </div>
+                    <i class="bi bi-arrow-right-circle-fill" style="font-size:32px;opacity:0.7;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- TABLEAUX -->
     <div class="row mt-2">
         <!-- PRODUITS RÉCENTS -->
         <div class="col-md-6">
@@ -745,7 +992,11 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                             <td><?= htmlspecialchars($row['name']) ?></td>
                             <td>
                                 <?= $row['quantity'] ?>
-                                <?php if($row['quantity'] <= 3): ?>
+                                <?php if($row['quantity'] == 0): ?>
+                                <span
+                                    style="background:#fee2e2;color:#dc2626;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:700;">❌
+                                    Rupture</span>
+                                <?php elseif($row['quantity'] <= 5): ?>
                                 <span class="badge-stock-low">⚠️ Faible</span>
                                 <?php endif; ?>
                             </td>
@@ -806,7 +1057,7 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
         </div>
     </div>
 
-    <!-- ===== TABLEAU ACHATS RÉCENTS ===== -->
+    <!-- ACHATS RÉCENTS -->
     <div class="row mt-4">
         <div class="col-12">
             <div class="card p-3">
@@ -819,8 +1070,8 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                         <a href="purchases/list.php" class="btn btn-sm btn-outline-primary">Voir tout</a>
                     </div>
                 </div>
-                <table class="table table-hover purchase-table">
-                    <thead style="background:#3b82f6;">
+                <table class="table table-hover">
+                    <thead>
                         <tr>
                             <th style="background:#3b82f6;color:white;">Produit</th>
                             <th style="background:#3b82f6;color:white;">Fournisseur</th>
@@ -852,14 +1103,10 @@ $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}
                             </td>
                             <td><?= $p['quantity'] ?></td>
                             <td><?= number_format($p['unit_price'], 0, '', ' ') ?></td>
-                            <td>
-                                <strong style="color:#3b82f6;">
-                                    <?= number_format($p['quantity'] * $p['unit_price'], 0, '', ' ') ?>
-                                </strong>
+                            <td><strong
+                                    style="color:#3b82f6;"><?= number_format($p['quantity'] * $p['unit_price'], 0, '', ' ') ?></strong>
                             </td>
-                            <td style="color:#64748b;">
-                                <?= date('d/m/Y H:i', strtotime($p['purchased_at'])) ?>
-                            </td>
+                            <td style="color:#64748b;"><?= date('d/m/Y H:i', strtotime($p['purchased_at'])) ?></td>
                         </tr>
                         <?php endwhile; ?>
                     </tbody>

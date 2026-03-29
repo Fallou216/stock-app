@@ -70,6 +70,16 @@ CREATE TABLE password_resets (
     used       TINYINT(1)   DEFAULT 0,
     created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE notifications (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    type       VARCHAR(50)  NOT NULL DEFAULT 'stock_alert',
+    message    TEXT         NOT NULL,
+    product_id INT          DEFAULT NULL,
+    is_read    TINYINT(1)   DEFAULT 0,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
 -- ============================================
 -- COMPTE ADMIN PAR DÉFAUT
 -- Email    : admin@stock.com
