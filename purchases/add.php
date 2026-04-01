@@ -7,55 +7,91 @@ if(!isset($_SESSION['user'])){
 include('../config/db.php');
 requireLogin();
 
-$currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
-
-$message     = '';
-$msgType     = '';
+$currentUser  = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
+$message      = '';
+$msgType      = '';
 $existing_qty = 0;
 
 if(isset($_POST['add'])){
-    $product_name   = trim($conn->real_escape_string($_POST['product_name']));
+    $product_name   = trim($_POST['product_name']);
     $qty            = intval($_POST['quantity']);
-    $unit_price     = floatval($_POST['unit_price']);
-    $supplier_name  = trim($conn->real_escape_string($_POST['supplier_name']));
-    $supplier_phone = trim($conn->real_escape_string($_POST['supplier_phone']));
+    $unit_price     = floatval($_POST['unit_price']);   // ← prix d'achat
+    $supplier_name  = trim($_POST['supplier_name']);
+    $supplier_phone = trim($_POST['supplier_phone']);
 
     if(!empty($product_name) && $qty > 0 && $unit_price > 0 && !empty($supplier_name)){
 
-        // ── Gestion fournisseur ──────────────────────
-        $supCheck = $conn->query("SELECT * FROM suppliers WHERE LOWER(name) = LOWER('$supplier_name')");
-        if($supCheck->num_rows > 0){
-            $supplier = $supCheck->fetch_assoc();
+        // ── Gestion fournisseur ─────────────────────────────
+        $stmtSup = $conn->prepare("SELECT * FROM suppliers WHERE LOWER(name) = LOWER(?)");
+        $stmtSup->bind_param("s", $supplier_name);
+        $stmtSup->execute();
+        $supRes = $stmtSup->get_result();
+        $stmtSup->close();
+
+        if($supRes->num_rows > 0){
+            $supplier    = $supRes->fetch_assoc();
             $supplier_id = $supplier['id'];
-            // Mettre à jour le téléphone si fourni
             if(!empty($supplier_phone)){
-                $conn->query("UPDATE suppliers SET phone='$supplier_phone' WHERE id=$supplier_id");
+                $stmtUpSup = $conn->prepare("UPDATE suppliers SET phone=? WHERE id=?");
+                $stmtUpSup->bind_param("si", $supplier_phone, $supplier_id);
+                $stmtUpSup->execute();
+                $stmtUpSup->close();
             }
         } else {
-            $conn->query("INSERT INTO suppliers(name, phone) VALUES('$supplier_name','$supplier_phone')");
+            $stmtInsSup = $conn->prepare("INSERT INTO suppliers(name, phone) VALUES(?, ?)");
+            $stmtInsSup->bind_param("ss", $supplier_name, $supplier_phone);
+            $stmtInsSup->execute();
             $supplier_id = $conn->insert_id;
+            $stmtInsSup->close();
         }
 
-        // ── Gestion produit ──────────────────────────
-        $prodCheck = $conn->query("SELECT * FROM products WHERE LOWER(name) = LOWER('$product_name')");
-        if($prodCheck->num_rows > 0){
-            // Produit existe → incrémenter
-            $product      = $prodCheck->fetch_assoc();
+        // ── Gestion produit ─────────────────────────────────
+        $stmtProd = $conn->prepare("SELECT * FROM products WHERE LOWER(name) = LOWER(?)");
+        $stmtProd->bind_param("s", $product_name);
+        $stmtProd->execute();
+        $prodRes = $stmtProd->get_result();
+        $stmtProd->close();
+
+        if($prodRes->num_rows > 0){
+            // ✅ Produit existe → incrémenter quantité + mettre à jour purchase_price
+            $product      = $prodRes->fetch_assoc();
             $product_id   = $product['id'];
             $existing_qty = $product['quantity'] + $qty;
-            $conn->query("UPDATE products SET quantity = quantity + $qty WHERE id = $product_id");
+
+            $stmtUpProd = $conn->prepare("
+                UPDATE products
+                SET quantity       = quantity + ?,
+                    purchase_price = ?
+                WHERE id = ?
+            ");
+            $stmtUpProd->bind_param("idi", $qty, $unit_price, $product_id);
+            $stmtUpProd->execute();
+            $stmtUpProd->close();
             $msgType = "incremented";
+
         } else {
-            // Nouveau produit → créer
-            $conn->query("INSERT INTO products(name, quantity, price) VALUES('$product_name', $qty, $unit_price)");
+            // ✅ Nouveau produit → créer avec purchase_price
+            // prix de vente = prix d'achat par défaut (à modifier dans edit.php)
+            $stmtInsProd = $conn->prepare("
+                INSERT INTO products(name, quantity, purchase_price, price)
+                VALUES(?, ?, ?, ?)
+            ");
+            $stmtInsProd->bind_param("sidd", $product_name, $qty, $unit_price, $unit_price);
+            $stmtInsProd->execute();
             $product_id   = $conn->insert_id;
             $existing_qty = $qty;
+            $stmtInsProd->close();
             $msgType = "new_product";
         }
 
-        // ── Enregistrer l'achat ──────────────────────
-        $conn->query("INSERT INTO purchases(product_id, supplier_id, quantity, unit_price)
-                      VALUES($product_id, $supplier_id, $qty, $unit_price)");
+        // ── Enregistrer l'achat ──────────────────────────────
+        $stmtIns = $conn->prepare("
+            INSERT INTO purchases(product_id, supplier_id, quantity, unit_price)
+            VALUES(?, ?, ?, ?)
+        ");
+        $stmtIns->bind_param("iiid", $product_id, $supplier_id, $qty, $unit_price);
+        $stmtIns->execute();
+        $stmtIns->close();
 
         $message = $msgType;
 
@@ -66,9 +102,14 @@ if(isset($_POST['add'])){
 }
 
 // Stats rapides
-$totalAchats    = $conn->query("SELECT COUNT(*) AS c FROM purchases")->fetch_assoc()['c'];
-$totalDepense   = $conn->query("SELECT SUM(quantity * unit_price) AS t FROM purchases")->fetch_assoc()['t'] ?? 0;
+$totalAchats       = $conn->query("SELECT COUNT(*) AS c FROM purchases")->fetch_assoc()['c'];
+$totalDepense      = $conn->query("SELECT SUM(quantity * unit_price) AS t FROM purchases")->fetch_assoc()['t'] ?? 0;
 $totalFournisseurs = $conn->query("SELECT COUNT(*) AS c FROM suppliers")->fetch_assoc()['c'];
+
+// Compteur notifications
+$bellCount = 0;
+$bellRes   = $conn->query("SELECT COUNT(*) AS c FROM notifications WHERE type='stock_alert' AND is_read=0");
+if($bellRes) $bellCount = $bellRes->fetch_assoc()['c'];
 
 // Derniers achats
 $lastPurchases = $conn->query("
@@ -297,6 +338,16 @@ $lastPurchases = $conn->query("
         color: #a5b4fc;
         padding: 1px 6px;
         border-radius: 10px;
+        margin-left: auto;
+    }
+
+    .notif-badge {
+        background: #ef4444;
+        color: white;
+        padding: 1px 7px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 700;
         margin-left: auto;
     }
 
@@ -596,6 +647,36 @@ $lastPurchases = $conn->query("
         gap: 4px;
     }
 
+    /* PRIX VENTE SUGGESTION */
+    .sell-price-box {
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        border: 1.5px solid #bbf7d0;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 16px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .sell-price-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--gray);
+    }
+
+    .sell-price-value {
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--green);
+    }
+
+    .sell-price-hint {
+        font-size: 11px;
+        color: #94a3b8;
+        margin-top: 2px;
+    }
+
     .total-preview {
         background: linear-gradient(135deg, #dbeafe, #ede9fe);
         border-radius: 12px;
@@ -757,6 +838,91 @@ $lastPurchases = $conn->query("
         font-weight: 600;
     }
 
+    /* ANALYSE RENTABILITE */
+    .analyse-card {
+        background: white;
+        border-radius: 20px;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid var(--border);
+    }
+
+    .analyse-card h6 {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .analyse-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 9px 0;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 13px;
+    }
+
+    .analyse-row:last-child {
+        border-bottom: none;
+    }
+
+    .analyse-label {
+        color: var(--gray);
+        font-weight: 500;
+    }
+
+    .analyse-val {
+        font-weight: 700;
+        color: var(--dark);
+    }
+
+    .analyse-val.green {
+        color: var(--green);
+    }
+
+    .analyse-val.red {
+        color: var(--red);
+    }
+
+    .big-profit {
+        text-align: center;
+        padding: 14px;
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        border-radius: 12px;
+        margin-top: 12px;
+        border: 1.5px solid #bbf7d0;
+    }
+
+    .big-profit.loss {
+        background: linear-gradient(135deg, #fef2f2, #fee2e2);
+        border-color: #fecaca;
+    }
+
+    .big-profit-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .big-profit-value {
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--green);
+        margin-top: 4px;
+    }
+
+    .big-profit-value.loss {
+        color: var(--red);
+    }
+
     .recap-total-box {
         margin-top: 14px;
         padding: 14px;
@@ -781,7 +947,6 @@ $lastPurchases = $conn->query("
         margin-top: 4px;
     }
 
-    /* DERNIERS ACHATS */
     .last-card {
         background: var(--dark);
         border-radius: 20px;
@@ -860,12 +1025,6 @@ $lastPurchases = $conn->query("
         border: 1.5px solid #bfdbfe;
     }
 
-    .alert-msg.warning {
-        background: #fffbeb;
-        color: #d97706;
-        border: 1.5px solid #fde68a;
-    }
-
     .alert-msg.error {
         background: #fef2f2;
         color: #dc2626;
@@ -884,7 +1043,7 @@ $lastPurchases = $conn->query("
         }
     }
 
-    @media(max-width: 900px) {
+    @media(max-width:900px) {
         .purchase-layout {
             grid-template-columns: 1fr;
         }
@@ -898,7 +1057,7 @@ $lastPurchases = $conn->query("
         }
     }
 
-    @media(max-width: 768px) {
+    @media(max-width:768px) {
         .sidebar {
             display: none;
         }
@@ -948,6 +1107,13 @@ $lastPurchases = $conn->query("
             <div class="nav-section">Ventes</div>
             <a href="../sales/sell.php"><i class="bi bi-cart-plus"></i> Nouvelle vente</a>
             <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique ventes</a>
+            <div class="nav-section">Alertes</div>
+            <a href="../notifications/index.php">
+                <i class="bi bi-bell<?= $bellCount > 0 ? '-fill' : '' ?>"></i> Notifications
+                <?php if($bellCount > 0): ?>
+                <span class="notif-badge"><?= $bellCount > 9 ? '9+' : $bellCount ?></span>
+                <?php endif; ?>
+            </a>
             <?php if(isAdmin()): ?>
             <div class="nav-section">Administration</div>
             <a href="../admin/create_employee.php"><i class="bi bi-people"></i> Employés <span
@@ -967,7 +1133,7 @@ $lastPurchases = $conn->query("
         <div class="topbar">
             <div>
                 <h5>🛍️ Nouvel Achat</h5>
-                <p>Enregistrez un achat et mettez le stock à jour automatiquement</p>
+                <p>Enregistrez un achat — le stock et le prix d'achat seront mis à jour automatiquement</p>
             </div>
             <div class="breadcrumb-nav">
                 <a href="../dashboard.php"><i class="bi bi-house"></i> Accueil</a>
@@ -1008,14 +1174,18 @@ $lastPurchases = $conn->query("
         <?php if($message === 'incremented'): ?>
         <div class="alert-msg incremented" id="alertMsg">
             <i class="bi bi-arrow-up-circle-fill"></i>
-            <span>Achat enregistré ! Stock incrémenté. Nouveau stock : <strong><?= $existing_qty ?>
-                    unité(s)</strong></span>
+            <span>
+                Achat enregistré ! Stock incrémenté et prix d'achat mis à jour.<br>
+                <strong>Nouveau stock : <?= $existing_qty ?> unité(s)</strong>
+            </span>
         </div>
         <?php elseif($message === 'new_product'): ?>
         <div class="alert-msg success" id="alertMsg">
             <i class="bi bi-check-circle-fill"></i>
-            <span>Achat enregistré ! Nouveau produit créé avec <strong><?= $existing_qty ?> unité(s)</strong> en
-                stock.</span>
+            <span>
+                Achat enregistré ! Nouveau produit créé avec <strong><?= $existing_qty ?> unité(s)</strong>.<br>
+                <small style="opacity:0.8;">💡 Pensez à définir un prix de vente dans la liste des produits.</small>
+            </span>
         </div>
         <?php elseif($message === 'error'): ?>
         <div class="alert-msg error" id="alertMsg">
@@ -1033,16 +1203,14 @@ $lastPurchases = $conn->query("
                     <div class="form-header-icon">🛍️</div>
                     <div>
                         <h4>Enregistrer un achat</h4>
-                        <p>Produit, quantité, prix et fournisseur</p>
+                        <p>Produit, quantité, prix d'achat et fournisseur</p>
                     </div>
                 </div>
 
                 <form method="POST" id="purchaseForm">
 
-                    <!-- SECTION PRODUIT -->
-                    <div class="section-divider">
-                        <span>📦 Informations produit</span>
-                    </div>
+                    <!-- PRODUIT -->
+                    <div class="section-divider"><span>📦 Informations produit</span></div>
 
                     <div class="form-group">
                         <label><i class="bi bi-box-seam"></i> Nom du produit <span class="required">*</span></label>
@@ -1053,7 +1221,7 @@ $lastPurchases = $conn->query("
                         </div>
                         <div class="input-hint">
                             <i class="bi bi-info-circle"></i>
-                            Si le produit existe, son stock sera automatiquement incrémenté
+                            Si le produit existe, son stock et son prix d'achat seront mis à jour
                         </div>
                     </div>
 
@@ -1067,14 +1235,27 @@ $lastPurchases = $conn->query("
                             </div>
                         </div>
                         <div class="form-group">
-                            <label><i class="bi bi-cash"></i> Prix unitaire (FCFA) <span
+                            <label><i class="bi bi-bag"></i> Prix d'achat unitaire (FCFA) <span
                                     class="required">*</span></label>
                             <div class="input-wrap">
-                                <i class="bi bi-currency-exchange input-icon"></i>
+                                <i class="bi bi-cash input-icon"></i>
                                 <input type="number" name="unit_price" id="inputPrice" placeholder="Ex: 3000" min="1"
                                     required>
                             </div>
+                            <div class="input-hint">
+                                <i class="bi bi-info-circle"></i>
+                                Mettra à jour le prix d'achat du produit
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- APERÇU PRIX VENTE SUGGÉRÉ -->
+                    <div class="sell-price-box" id="sellPriceBox" style="display:none;">
+                        <div>
+                            <div class="sell-price-label">💡 Prix de vente suggéré (+20% de marge)</div>
+                            <div class="sell-price-hint">Modifiable dans la liste des produits</div>
+                        </div>
+                        <div class="sell-price-value" id="sellPriceSugg">— FCFA</div>
                     </div>
 
                     <!-- TOTAL EN DIRECT -->
@@ -1085,10 +1266,8 @@ $lastPurchases = $conn->query("
                         <span class="total-preview-value" id="totalPreview">— FCFA</span>
                     </div>
 
-                    <!-- SECTION FOURNISSEUR -->
-                    <div class="section-divider">
-                        <span>🏢 Informations fournisseur</span>
-                    </div>
+                    <!-- FOURNISSEUR -->
+                    <div class="section-divider"><span>🏢 Informations fournisseur</span></div>
 
                     <div class="form-row">
                         <div class="form-group">
@@ -1120,7 +1299,6 @@ $lastPurchases = $conn->query("
                         <i class="bi bi-arrow-counterclockwise"></i>
                         Réinitialiser
                     </button>
-
                 </form>
             </div>
 
@@ -1136,13 +1314,38 @@ $lastPurchases = $conn->query("
                         <div class="recap-box-supplier" id="recapSupplier">Fournisseur: —</div>
                         <div class="recap-pills">
                             <div class="recap-pill" id="recapQty">Qté: —</div>
-                            <div class="recap-pill" id="recapPrice">Prix: —</div>
+                            <div class="recap-pill" id="recapPrice">Achat: —</div>
                             <div class="recap-pill" id="recapPhone">📞 —</div>
                         </div>
                     </div>
                     <div class="recap-total-box">
                         <div class="recap-total-label">Total achat</div>
                         <div class="recap-total-value" id="recapTotal">— FCFA</div>
+                    </div>
+                </div>
+
+                <!-- ANALYSE RENTABILITÉ -->
+                <div class="analyse-card">
+                    <h6><i class="bi bi-graph-up-arrow"></i> Analyse rentabilité</h6>
+                    <div class="analyse-row">
+                        <span class="analyse-label">Prix d'achat/unité</span>
+                        <span class="analyse-val" id="aBuy">— FCFA</span>
+                    </div>
+                    <div class="analyse-row">
+                        <span class="analyse-label">Vente suggérée (+20%)</span>
+                        <span class="analyse-val green" id="aSell">— FCFA</span>
+                    </div>
+                    <div class="analyse-row">
+                        <span class="analyse-label">Bénéfice/unité estimé</span>
+                        <span class="analyse-val green" id="aProfit">— FCFA</span>
+                    </div>
+                    <div class="analyse-row">
+                        <span class="analyse-label">Bénéfice total estimé</span>
+                        <span class="analyse-val green" id="aTotalProfit">— FCFA</span>
+                    </div>
+                    <div class="big-profit" id="bigProfit">
+                        <div class="big-profit-label">Potentiel si tout vendu</div>
+                        <div class="big-profit-value" id="bigProfitVal">— FCFA</div>
                     </div>
                 </div>
 
@@ -1188,34 +1391,66 @@ $lastPurchases = $conn->query("
     const recapPhone = document.getElementById('recapPhone');
     const recapTotal = document.getElementById('recapTotal');
     const totalPreview = document.getElementById('totalPreview');
+    const sellPriceBox = document.getElementById('sellPriceBox');
+    const sellPriceSugg = document.getElementById('sellPriceSugg');
+    const aBuy = document.getElementById('aBuy');
+    const aSell = document.getElementById('aSell');
+    const aProfit = document.getElementById('aProfit');
+    const aTotalProfit = document.getElementById('aTotalProfit');
+    const bigProfit = document.getElementById('bigProfit');
+    const bigProfitVal = document.getElementById('bigProfitVal');
 
-    function updateRecap() {
+    function fmt(n) {
+        return Math.round(n).toLocaleString('fr-FR');
+    }
+
+    function updateAll() {
         const product = inputProduct.value.trim();
         const qty = parseInt(inputQty.value) || 0;
-        const price = parseFloat(inputPrice.value) || 0;
+        const buy = parseFloat(inputPrice.value) || 0;
         const supplier = inputSupplier.value.trim();
         const phone = inputPhone.value.trim();
-        const total = qty * price;
+        const total = qty * buy;
 
+        // Prix vente suggéré à +20%
+        const suggestedSell = buy > 0 ? buy * 1.2 : 0;
+        const profitPerUnit = suggestedSell - buy;
+        const totalProfit = profitPerUnit * qty;
+
+        // Récap
         recapProduct.textContent = product || 'Aucun produit saisi';
         recapProduct.className = 'recap-box-product' + (product ? '' : ' empty');
         recapSupplier.textContent = 'Fournisseur: ' + (supplier || '—');
         recapQty.textContent = 'Qté: ' + (qty > 0 ? qty : '—');
-        recapPrice.textContent = 'Prix: ' + (price > 0 ? price.toLocaleString('fr-FR') + ' F' : '—');
+        recapPrice.textContent = 'Achat: ' + (buy > 0 ? fmt(buy) + ' F' : '—');
         recapPhone.textContent = '📞 ' + (phone || '—');
-        recapTotal.textContent = total > 0 ? total.toLocaleString('fr-FR') + ' FCFA' : '— FCFA';
-        totalPreview.textContent = total > 0 ? total.toLocaleString('fr-FR') + ' FCFA' : '— FCFA';
+        recapTotal.textContent = total > 0 ? fmt(total) + ' FCFA' : '— FCFA';
+        totalPreview.textContent = total > 0 ? fmt(total) + ' FCFA' : '— FCFA';
+
+        // Prix vente suggéré
+        if (buy > 0) {
+            sellPriceBox.style.display = 'flex';
+            sellPriceSugg.textContent = fmt(suggestedSell) + ' FCFA';
+        } else {
+            sellPriceBox.style.display = 'none';
+        }
+
+        // Analyse rentabilité
+        aBuy.textContent = buy > 0 ? fmt(buy) + ' FCFA' : '— FCFA';
+        aSell.textContent = buy > 0 ? fmt(suggestedSell) + ' FCFA' : '— FCFA';
+        aProfit.textContent = buy > 0 ? '+' + fmt(profitPerUnit) + ' FCFA' : '— FCFA';
+        aTotalProfit.textContent = buy > 0 ? '+' + fmt(totalProfit) + ' FCFA' : '— FCFA';
+        bigProfitVal.textContent = buy > 0 ? '+' + fmt(totalProfit) + ' FCFA' : '— FCFA';
     }
 
     [inputProduct, inputQty, inputPrice, inputSupplier, inputPhone].forEach(el => {
-        el.addEventListener('input', updateRecap);
+        el.addEventListener('input', updateAll);
     });
 
     function resetForm() {
-        setTimeout(updateRecap, 10);
+        setTimeout(updateAll, 10);
     }
 
-    // Disparition alertes
     setTimeout(function() {
         const alert = document.getElementById('alertMsg');
         if (alert) {

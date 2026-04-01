@@ -7,30 +7,46 @@ if(!isset($_SESSION['user'])){
 include('../config/db.php');
 requireLogin();
 
-$currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
-
+$currentUser  = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
 $message      = "";
 $existing_qty = 0;
 
 if(isset($_POST['add'])){
-    $n = trim($conn->real_escape_string($_POST['name']));
-    $q = intval($_POST['quantity']);
-    $p = floatval($_POST['price']);
+    $n  = trim($_POST['name']);
+    $q  = intval($_POST['quantity']);
+    $p  = floatval($_POST['price']);          // Prix de vente
+    $pp = floatval($_POST['purchase_price']); // Prix d'achat
 
     if(!empty($n) && $q > 0 && $p > 0){
-        // Vérifier si le produit existe déjà (insensible à la casse)
-        $check = $conn->query("SELECT * FROM products WHERE LOWER(name) = LOWER('$n')");
+
+        // Requête préparée — gère les apostrophes
+        $stmtCheck = $conn->prepare("SELECT * FROM products WHERE LOWER(name) = LOWER(?)");
+        $stmtCheck->bind_param("s", $n);
+        $stmtCheck->execute();
+        $check = $stmtCheck->get_result();
+        $stmtCheck->close();
+
         if($check->num_rows > 0){
-            // Produit existe → incrémenter
+            // Produit existe → incrémenter quantité
             $existing     = $check->fetch_assoc();
             $existing_qty = $existing['quantity'] + $q;
-            $conn->query("UPDATE products SET quantity = quantity + $q WHERE id = {$existing['id']}");
+            $pid          = $existing['id'];
+
+            $stmtUp = $conn->prepare("UPDATE products SET quantity = quantity + ?, purchase_price = ?, price = ? WHERE id = ?");
+            $stmtUp->bind_param("iddi", $q, $pp, $p, $pid);
+            $stmtUp->execute();
+            $stmtUp->close();
             $message = "incremented";
+
         } else {
             // Nouveau produit → insérer
-            $conn->query("INSERT INTO products(name,quantity,price) VALUES('$n','$q','$p')");
+            $stmtIns = $conn->prepare("INSERT INTO products(name, quantity, purchase_price, price) VALUES(?, ?, ?, ?)");
+            $stmtIns->bind_param("sidd", $n, $q, $pp, $p);
+            $stmtIns->execute();
+            $stmtIns->close();
             $message = "success";
         }
+
     } else {
         $message = "error";
     }
@@ -64,6 +80,7 @@ if(isset($_POST['add'])){
         --green: #10b981;
         --red: #ef4444;
         --orange: #f59e0b;
+        --blue: #3b82f6;
     }
 
     body {
@@ -319,17 +336,15 @@ if(isset($_POST['add'])){
         font-weight: 600;
     }
 
-    .breadcrumb-nav a:hover {
-        text-decoration: underline;
-    }
-
+    /* LAYOUT */
     .add-layout {
         display: grid;
-        grid-template-columns: 1fr 340px;
+        grid-template-columns: 1fr 360px;
         gap: 24px;
         align-items: start;
     }
 
+    /* FORM */
     .form-card {
         background: white;
         border-radius: 20px;
@@ -392,8 +407,34 @@ if(isset($_POST['add'])){
         color: var(--green);
     }
 
+    /* SECTION LABEL */
+    .section-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin: 0 0 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .section-label::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
     .form-group {
-        margin-bottom: 22px;
+        margin-bottom: 20px;
     }
 
     .form-group label {
@@ -409,13 +450,31 @@ if(isset($_POST['add'])){
     .form-group label i {
         width: 22px;
         height: 22px;
-        background: #ede9fe;
-        color: var(--primary);
         border-radius: 6px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 12px;
+    }
+
+    .form-group label i.purple {
+        background: #ede9fe;
+        color: var(--primary);
+    }
+
+    .form-group label i.green {
+        background: #d1fae5;
+        color: var(--green);
+    }
+
+    .form-group label i.blue {
+        background: #dbeafe;
+        color: var(--blue);
+    }
+
+    .form-group label i.orange {
+        background: #fef3c7;
+        color: var(--orange);
     }
 
     .required {
@@ -429,7 +488,7 @@ if(isset($_POST['add'])){
 
     .input-wrap input {
         width: 100%;
-        padding: 13px 16px 13px 44px;
+        padding: 12px 16px 12px 44px;
         border: 2px solid var(--border);
         border-radius: 12px;
         font-family: 'Plus Jakarta Sans', sans-serif;
@@ -447,6 +506,11 @@ if(isset($_POST['add'])){
         box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08);
     }
 
+    .input-wrap input.green-focus:focus {
+        border-color: var(--green);
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.08);
+    }
+
     .input-wrap input::placeholder {
         color: #cbd5e1;
         font-weight: 400;
@@ -457,7 +521,7 @@ if(isset($_POST['add'])){
         left: 14px;
         top: 50%;
         transform: translateY(-50%);
-        font-size: 17px;
+        font-size: 16px;
         color: #94a3b8;
         pointer-events: none;
         transition: color 0.2s;
@@ -470,29 +534,55 @@ if(isset($_POST['add'])){
     .input-hint {
         font-size: 12px;
         color: #94a3b8;
-        margin-top: 6px;
+        margin-top: 5px;
         display: flex;
         align-items: center;
         gap: 4px;
     }
 
-    .price-preview {
-        display: inline-flex;
+    /* BENEFICE PREVIEW */
+    .benefice-box {
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        border: 1.5px solid #bbf7d0;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 16px 0;
+        display: flex;
+        justify-content: space-between;
         align-items: center;
-        gap: 6px;
-        background: #f0fdf4;
-        color: var(--green);
-        padding: 4px 10px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 700;
-        margin-top: 6px;
-        opacity: 0;
-        transition: opacity 0.3s;
     }
 
-    .price-preview.visible {
-        opacity: 1;
+    .benefice-box.negative {
+        background: linear-gradient(135deg, #fef2f2, #fee2e2);
+        border-color: #fecaca;
+    }
+
+    .benefice-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .benefice-value {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--green);
+    }
+
+    .benefice-value.negative {
+        color: var(--red);
+    }
+
+    .benefice-pct {
+        font-size: 12px;
+        color: var(--green);
+        font-weight: 600;
+    }
+
+    .benefice-pct.negative {
+        color: var(--red);
     }
 
     .form-divider {
@@ -603,7 +693,7 @@ if(isset($_POST['add'])){
         color: white;
         position: relative;
         overflow: hidden;
-        min-height: 120px;
+        min-height: 130px;
     }
 
     .preview-product::before {
@@ -636,17 +726,108 @@ if(isset($_POST['add'])){
 
     .preview-product-meta {
         display: flex;
-        gap: 12px;
+        gap: 8px;
         margin-top: 10px;
+        flex-wrap: wrap;
     }
 
     .meta-pill {
         background: rgba(255, 255, 255, 0.2);
         padding: 4px 10px;
         border-radius: 20px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         backdrop-filter: blur(4px);
+    }
+
+    /* BÉNÉFICE CARD */
+    .benefice-card {
+        background: white;
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid var(--border);
+    }
+
+    .benefice-card h6 {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .benefice-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 13px;
+    }
+
+    .benefice-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .benefice-row-label {
+        color: var(--gray);
+        font-weight: 500;
+    }
+
+    .benefice-row-val {
+        font-weight: 700;
+        color: var(--dark);
+    }
+
+    .benefice-row-val.profit {
+        color: var(--green);
+    }
+
+    .benefice-row-val.loss {
+        color: var(--red);
+    }
+
+    .benefice-row-val.neutral {
+        color: var(--gray);
+    }
+
+    .big-profit {
+        text-align: center;
+        padding: 16px;
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        border-radius: 12px;
+        margin-top: 14px;
+        border: 1.5px solid #bbf7d0;
+    }
+
+    .big-profit.loss {
+        background: linear-gradient(135deg, #fef2f2, #fee2e2);
+        border-color: #fecaca;
+    }
+
+    .big-profit-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .big-profit-value {
+        font-size: 26px;
+        font-weight: 800;
+        color: var(--green);
+        margin-top: 4px;
+    }
+
+    .big-profit-value.loss {
+        color: var(--red);
     }
 
     .tips-card {
@@ -751,7 +932,7 @@ if(isset($_POST['add'])){
         }
     }
 
-    @media(max-width: 900px) {
+    @media(max-width:900px) {
         .add-layout {
             grid-template-columns: 1fr;
         }
@@ -759,9 +940,13 @@ if(isset($_POST['add'])){
         .side-panel {
             display: none;
         }
+
+        .form-row {
+            grid-template-columns: 1fr;
+        }
     }
 
-    @media(max-width: 768px) {
+    @media(max-width:768px) {
         .sidebar {
             display: none;
         }
@@ -783,14 +968,11 @@ if(isset($_POST['add'])){
             <h4>Stock App</h4>
             <span>Gestion de stock</span>
         </div>
-
         <div class="sidebar-profile">
             <?php if(!empty($currentUser['photo'])): ?>
             <img src="../uploads/<?= htmlspecialchars($currentUser['photo']) ?>" alt="Photo">
             <?php else: ?>
-            <div class="sidebar-avatar-placeholder">
-                <?= strtoupper(substr($_SESSION['user'], 0, 1)) ?>
-            </div>
+            <div class="sidebar-avatar-placeholder"><?= strtoupper(substr($_SESSION['user'],0,1)) ?></div>
             <?php endif; ?>
             <div style="overflow:hidden;">
                 <div class="sidebar-profile-name"><?= htmlspecialchars($_SESSION['user']) ?></div>
@@ -801,34 +983,36 @@ if(isset($_POST['add'])){
                 <?php endif; ?>
             </div>
         </div>
-
         <nav class="sidebar-nav">
             <div class="nav-section">Principal</div>
             <a href="../dashboard.php"><i class="bi bi-speedometer2"></i> Dashboard</a>
-
             <div class="nav-section">Inventaire</div>
             <a href="list.php"><i class="bi bi-box-seam"></i> Produits</a>
-            <a href="add.php" class="active">
-                <i class="bi bi-plus-circle"></i> Ajouter produit
-            </a>
-
+            <a href="add.php" class="active"><i class="bi bi-plus-circle"></i> Ajouter produit</a>
+            <div class="nav-section">Achats</div>
+            <a href="../purchases/add.php"><i class="bi bi-bag-plus"></i> Nouvel achat</a>
+            <a href="../purchases/list.php"><i class="bi bi-clock-history"></i> Historique achats</a>
+            <a href="../purchases/suppliers.php"><i class="bi bi-building"></i> Fournisseurs</a>
             <div class="nav-section">Ventes</div>
             <a href="../sales/sell.php"><i class="bi bi-cart-plus"></i> Nouvelle vente</a>
-            <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique</a>
-
+            <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique ventes</a>
+            <div class="nav-section">Alertes</div>
+            <a href="../notifications/index.php">
+                <i class="bi bi-bell"></i> Notifications
+                <?php
+            $bc = $conn->query("SELECT COUNT(*) AS c FROM notifications WHERE type='stock_alert' AND is_read=0");
+            $bc = $bc ? $bc->fetch_assoc()['c'] : 0;
+            if($bc > 0) echo "<span style='background:#ef4444;color:white;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:700;margin-left:auto;'>$bc</span>";
+            ?>
+            </a>
             <?php if(isAdmin()): ?>
             <div class="nav-section">Administration</div>
-            <a href="../admin/create_employee.php">
-                <i class="bi bi-people"></i> Employés
-                <span class="admin-only-badge">Admin</span>
-            </a>
-            <a href="../admin/profile.php">
-                <i class="bi bi-person-circle"></i> Mon profil
-                <span class="admin-only-badge">Admin</span>
-            </a>
+            <a href="../admin/create_employee.php"><i class="bi bi-people"></i> Employés <span
+                    class="admin-only-badge">Admin</span></a>
+            <a href="../admin/profile.php"><i class="bi bi-person-circle"></i> Mon profil <span
+                    class="admin-only-badge">Admin</span></a>
             <?php endif; ?>
         </nav>
-
         <div class="sidebar-footer">
             <a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Déconnexion</a>
         </div>
@@ -836,7 +1020,6 @@ if(isset($_POST['add'])){
 
     <!-- CONTENT -->
     <div class="content">
-
         <div class="topbar">
             <div>
                 <h5>➕ Ajouter un produit</h5>
@@ -855,22 +1038,20 @@ if(isset($_POST['add'])){
         <?php if($message === 'success'): ?>
         <div class="alert-msg success" id="alertMsg">
             <i class="bi bi-check-circle-fill"></i>
-            <span>Produit ajouté avec succès ! Il est maintenant disponible dans votre stock.</span>
+            <span>Produit ajouté avec succès ! Disponible dans votre stock.</span>
         </div>
-
         <?php elseif($message === 'incremented'): ?>
         <div class="alert-msg warning" id="alertMsg">
             <i class="bi bi-arrow-up-circle-fill"></i>
             <span>
-                Ce produit existe déjà ! La quantité a été incrémentée automatiquement.<br>
+                Produit existant — quantité et prix mis à jour.<br>
                 <strong>Nouveau stock : <?= $existing_qty ?> unité(s)</strong>
             </span>
         </div>
-
         <?php elseif($message === 'error'): ?>
         <div class="alert-msg error" id="alertMsg">
             <i class="bi bi-x-circle-fill"></i>
-            <span>Veuillez remplir tous les champs correctement (quantité et prix &gt; 0).</span>
+            <span>Veuillez remplir tous les champs correctement (quantité et prix de vente &gt; 0).</span>
         </div>
         <?php endif; ?>
 
@@ -885,22 +1066,20 @@ if(isset($_POST['add'])){
                         <h4>Nouveau produit</h4>
                         <p>Remplissez les champs ci-dessous</p>
                         <?php if(isAdmin()): ?>
-                        <div class="user-tag admin">
-                            <i class="bi bi-shield-fill"></i> Administrateur
-                        </div>
+                        <div class="user-tag admin"><i class="bi bi-shield-fill"></i> Administrateur</div>
                         <?php else: ?>
-                        <div class="user-tag employee">
-                            <i class="bi bi-person-fill"></i> Employé
-                        </div>
+                        <div class="user-tag employee"><i class="bi bi-person-fill"></i> Employé</div>
                         <?php endif; ?>
                     </div>
                 </div>
 
                 <form method="POST" id="addForm">
 
+                    <!-- NOM -->
+                    <div class="section-label">📦 Informations produit</div>
                     <div class="form-group">
                         <label>
-                            <i class="bi bi-tag"></i>
+                            <i class="bi bi-tag purple"></i>
                             Nom du produit <span class="required">*</span>
                         </label>
                         <div class="input-wrap">
@@ -910,62 +1089,78 @@ if(isset($_POST['add'])){
                         </div>
                         <div class="input-hint">
                             <i class="bi bi-info-circle"></i>
-                            Si le produit existe déjà, la quantité sera automatiquement incrémentée
+                            Si le produit existe, la quantité sera incrémentée et les prix mis à jour
                         </div>
                     </div>
 
-                    <hr class="form-divider">
-
+                    <!-- QUANTITÉ -->
                     <div class="form-group">
                         <label>
-                            <i class="bi bi-hash"></i>
+                            <i class="bi bi-hash purple"></i>
                             Quantité en stock <span class="required">*</span>
                         </label>
                         <div class="input-wrap">
                             <i class="bi bi-stack input-icon"></i>
                             <input type="number" name="quantity" id="inputQty" placeholder="Ex: 50" min="1" required>
                         </div>
-                        <div class="input-hint">
-                            <i class="bi bi-info-circle"></i>
-                            Nombre d'unités à ajouter au stock
+                        <div class="input-hint"><i class="bi bi-info-circle"></i> Nombre d'unités à ajouter</div>
+                    </div>
+
+                    <hr class="form-divider">
+
+                    <!-- PRIX ACHAT + VENTE sur 2 colonnes -->
+                    <div class="section-label">💰 Prix & Bénéfice</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="bi bi-cart-check blue"></i>
+                                Prix d'achat (FCFA)
+                            </label>
+                            <div class="input-wrap">
+                                <i class="bi bi-bag input-icon"></i>
+                                <input type="number" name="purchase_price" id="inputPurchasePrice"
+                                    placeholder="Ex: 3000" min="0" value="0" class="green-focus">
+                            </div>
+                            <div class="input-hint"><i class="bi bi-info-circle"></i> Prix auquel vous achetez</div>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="bi bi-tag-fill orange"></i>
+                                Prix de vente (FCFA) <span class="required">*</span>
+                            </label>
+                            <div class="input-wrap">
+                                <i class="bi bi-cash input-icon"></i>
+                                <input type="number" name="price" id="inputPrice" placeholder="Ex: 5000" min="1"
+                                    required>
+                            </div>
+                            <div class="input-hint"><i class="bi bi-info-circle"></i> Prix auquel vous vendez</div>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>
-                            <i class="bi bi-currency-exchange"></i>
-                            Prix unitaire <span class="required">*</span>
-                        </label>
-                        <div class="input-wrap">
-                            <i class="bi bi-cash input-icon"></i>
-                            <input type="number" name="price" id="inputPrice" placeholder="Ex: 5000" min="1" required>
+                    <!-- APERÇU BÉNÉFICE -->
+                    <div class="benefice-box" id="beneficeBox">
+                        <div>
+                            <div class="benefice-label">💹 Bénéfice par unité</div>
+                            <div class="benefice-pct" id="beneficePct">Entrez les deux prix</div>
                         </div>
-                        <div class="price-preview" id="pricePreview">
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span id="pricePreviewText"></span>
-                        </div>
-                        <div class="input-hint">
-                            <i class="bi bi-info-circle"></i>
-                            Prix en Francs CFA (FCFA)
-                        </div>
+                        <div class="benefice-value" id="beneficeVal">— FCFA</div>
                     </div>
 
                     <hr class="form-divider">
 
                     <button type="submit" name="add" class="btn-add">
-                        <i class="bi bi-plus-circle-fill"></i>
-                        Ajouter le produit
+                        <i class="bi bi-plus-circle-fill"></i> Ajouter le produit
                     </button>
                     <button type="reset" class="btn-reset" onclick="resetPreview()">
-                        <i class="bi bi-arrow-counterclockwise"></i>
-                        Réinitialiser
+                        <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser
                     </button>
-
                 </form>
             </div>
 
             <!-- PANNEAU LATÉRAL -->
             <div class="side-panel">
+
+                <!-- APERÇU PRODUIT -->
                 <div class="preview-card">
                     <h6><i class="bi bi-eye"></i> Aperçu en direct</h6>
                     <div class="preview-product">
@@ -973,32 +1168,59 @@ if(isset($_POST['add'])){
                         <div class="preview-product-name empty" id="previewName">Nom du produit...</div>
                         <div class="preview-product-meta">
                             <div class="meta-pill" id="previewQty">Qté: —</div>
-                            <div class="meta-pill" id="previewPrice">Prix: —</div>
+                            <div class="meta-pill" id="previewBuy">Achat: —</div>
+                            <div class="meta-pill" id="previewSell">Vente: —</div>
                         </div>
                     </div>
                 </div>
 
+                <!-- CARTE BÉNÉFICE -->
+                <div class="benefice-card">
+                    <h6><i class="bi bi-graph-up-arrow"></i> Analyse rentabilité</h6>
+                    <div class="benefice-row">
+                        <span class="benefice-row-label">Prix d'achat</span>
+                        <span class="benefice-row-val" id="sideBuy">— FCFA</span>
+                    </div>
+                    <div class="benefice-row">
+                        <span class="benefice-row-label">Prix de vente</span>
+                        <span class="benefice-row-val" id="sideSell">— FCFA</span>
+                    </div>
+                    <div class="benefice-row">
+                        <span class="benefice-row-label">Marge %</span>
+                        <span class="benefice-row-val" id="sideMargin">— %</span>
+                    </div>
+                    <div class="benefice-row">
+                        <span class="benefice-row-label">Bénéfice / unité</span>
+                        <span class="benefice-row-val profit" id="sideProfit">— FCFA</span>
+                    </div>
+                    <div class="big-profit" id="bigProfit">
+                        <div class="big-profit-label">Bénéfice total estimé</div>
+                        <div class="big-profit-value" id="bigProfitVal">— FCFA</div>
+                    </div>
+                </div>
+
+                <!-- CONSEILS -->
                 <div class="tips-card">
                     <h6>💡 Conseils</h6>
                     <div class="tip-item">
-                        <div class="tip-icon"><i class="bi bi-arrow-up-circle"></i></div>
+                        <div class="tip-icon"><i class="bi bi-bag"></i></div>
                         <div class="tip-text">
-                            <strong>Produit existant ?</strong>
-                            Si le nom existe déjà, la quantité est automatiquement ajoutée au stock existant.
+                            <strong>Prix d'achat</strong>
+                            Ce que vous payez au fournisseur par unité.
                         </div>
                     </div>
                     <div class="tip-item">
-                        <div class="tip-icon"><i class="bi bi-stack"></i></div>
+                        <div class="tip-icon"><i class="bi bi-tag"></i></div>
                         <div class="tip-text">
-                            <strong>Quantité</strong>
-                            Entrez le nombre d'unités à ajouter au stock.
+                            <strong>Prix de vente</strong>
+                            Ce que le client paie. Doit être supérieur au prix d'achat.
                         </div>
                     </div>
                     <div class="tip-item">
-                        <div class="tip-icon"><i class="bi bi-cash"></i></div>
+                        <div class="tip-icon"><i class="bi bi-graph-up"></i></div>
                         <div class="tip-text">
-                            <strong>Prix unitaire</strong>
-                            Prix de vente en FCFA par unité.
+                            <strong>Bénéfice</strong>
+                            Calculé automatiquement : vente − achat × quantité.
                         </div>
                     </div>
                 </div>
@@ -1011,44 +1233,81 @@ if(isset($_POST['add'])){
     const inputName = document.getElementById('inputName');
     const inputQty = document.getElementById('inputQty');
     const inputPrice = document.getElementById('inputPrice');
+    const inputPurchasePrice = document.getElementById('inputPurchasePrice');
     const previewName = document.getElementById('previewName');
     const previewQty = document.getElementById('previewQty');
-    const previewPrice = document.getElementById('previewPrice');
-    const pricePreview = document.getElementById('pricePreview');
-    const pricePreviewText = document.getElementById('pricePreviewText');
+    const previewBuy = document.getElementById('previewBuy');
+    const previewSell = document.getElementById('previewSell');
+    const beneficeBox = document.getElementById('beneficeBox');
+    const beneficeVal = document.getElementById('beneficeVal');
+    const beneficePct = document.getElementById('beneficePct');
+    const sideBuy = document.getElementById('sideBuy');
+    const sideSell = document.getElementById('sideSell');
+    const sideMargin = document.getElementById('sideMargin');
+    const sideProfit = document.getElementById('sideProfit');
+    const bigProfit = document.getElementById('bigProfit');
+    const bigProfitVal = document.getElementById('bigProfitVal');
 
-    inputName.addEventListener('input', function() {
-        if (this.value.trim()) {
-            previewName.textContent = this.value;
-            previewName.classList.remove('empty');
+    function fmt(n) {
+        return Math.round(n).toLocaleString('fr-FR');
+    }
+
+    function updateAll() {
+        const name = inputName.value.trim();
+        const qty = parseInt(inputQty.value) || 0;
+        const buy = parseFloat(inputPurchasePrice.value) || 0;
+        const sell = parseFloat(inputPrice.value) || 0;
+        const profit = sell - buy;
+        const totalProfit = profit * qty;
+        const margin = buy > 0 ? ((profit / buy) * 100) : 0;
+
+        // Aperçu nom
+        previewName.textContent = name || 'Nom du produit...';
+        previewName.className = 'preview-product-name' + (name ? '' : ' empty');
+
+        // Pills aperçu
+        previewQty.textContent = qty > 0 ? 'Qté: ' + qty : 'Qté: —';
+        previewBuy.textContent = buy > 0 ? 'Achat: ' + fmt(buy) + ' F' : 'Achat: —';
+        previewSell.textContent = sell > 0 ? 'Vente: ' + fmt(sell) + ' F' : 'Vente: —';
+
+        // Bénéfice dans le formulaire
+        if (sell > 0 && buy >= 0) {
+            const isLoss = profit < 0;
+            beneficeBox.className = 'benefice-box' + (isLoss ? ' negative' : '');
+            beneficeVal.className = 'benefice-value' + (isLoss ? ' negative' : '');
+            beneficePct.className = 'benefice-pct' + (isLoss ? ' negative' : '');
+            beneficeVal.textContent = (isLoss ? '−' : '+') + fmt(Math.abs(profit)) + ' FCFA';
+            beneficePct.textContent = buy > 0 ? 'Marge : ' + margin.toFixed(1) + '%' : 'Prix d\'achat non renseigné';
         } else {
-            previewName.textContent = 'Nom du produit...';
-            previewName.classList.add('empty');
+            beneficeBox.className = 'benefice-box';
+            beneficeVal.textContent = '— FCFA';
+            beneficePct.textContent = 'Entrez les deux prix';
         }
-    });
 
-    inputQty.addEventListener('input', function() {
-        previewQty.textContent = this.value ? 'Qté: ' + this.value : 'Qté: —';
-    });
+        // Panneau latéral
+        sideBuy.textContent = buy > 0 ? fmt(buy) + ' FCFA' : '— FCFA';
+        sideSell.textContent = sell > 0 ? fmt(sell) + ' FCFA' : '— FCFA';
+        sideMargin.textContent = (buy > 0 && sell > 0) ? margin.toFixed(1) + ' %' : '— %';
 
-    inputPrice.addEventListener('input', function() {
-        if (this.value > 0) {
-            const formatted = parseInt(this.value).toLocaleString('fr-FR');
-            previewPrice.textContent = 'Prix: ' + formatted + ' F';
-            pricePreviewText.textContent = formatted + ' FCFA';
-            pricePreview.classList.add('visible');
+        if (sell > 0) {
+            const isLoss = profit < 0;
+            sideProfit.className = 'benefice-row-val ' + (isLoss ? 'loss' : 'profit');
+            sideProfit.textContent = (isLoss ? '−' : '+') + fmt(Math.abs(profit)) + ' FCFA';
+            bigProfit.className = 'big-profit' + (isLoss ? ' loss' : '');
+            bigProfitVal.className = 'big-profit-value' + (isLoss ? ' loss' : '');
+            bigProfitVal.textContent = (isLoss ? '−' : '+') + fmt(Math.abs(totalProfit)) + ' FCFA';
         } else {
-            previewPrice.textContent = 'Prix: —';
-            pricePreview.classList.remove('visible');
+            sideProfit.textContent = '— FCFA';
+            bigProfitVal.textContent = '— FCFA';
         }
+    }
+
+    [inputName, inputQty, inputPrice, inputPurchasePrice].forEach(el => {
+        el.addEventListener('input', updateAll);
     });
 
     function resetPreview() {
-        previewName.textContent = 'Nom du produit...';
-        previewName.classList.add('empty');
-        previewQty.textContent = 'Qté: —';
-        previewPrice.textContent = 'Prix: —';
-        pricePreview.classList.remove('visible');
+        setTimeout(updateAll, 10);
     }
 
     // Disparition alertes après 10s
@@ -1061,7 +1320,6 @@ if(isset($_POST['add'])){
         }
     }, 10000);
     </script>
-
 </body>
 
 </html>

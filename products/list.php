@@ -5,29 +5,47 @@ if(!isset($_SESSION['user'])){
     exit();
 }
 include('../config/db.php');
+requireLogin();
 
-// Récupérer infos complètes de l'utilisateur connecté
 $currentUser = $conn->query("SELECT * FROM users WHERE id={$_SESSION['user_id']}")->fetch_assoc();
 
+// Compteur notifications
+$bellCount = 0;
+$bellRes   = $conn->query("SELECT COUNT(*) AS c FROM notifications WHERE type='stock_alert' AND is_read=0");
+if($bellRes) $bellCount = $bellRes->fetch_assoc()['c'];
+
+// Stats globales avec bénéfice
+$statsRes = $conn->query("
+    SELECT 
+        COUNT(*)                                    AS total,
+        SUM(quantity)                               AS total_qty,
+        SUM(quantity * price)                       AS total_val_vente,
+        SUM(quantity * purchase_price)              AS total_val_achat,
+        SUM(quantity * (price - purchase_price))    AS total_benefice
+    FROM products
+");
+$s = $statsRes->fetch_assoc();
+
+// Produits
 $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
 ?>
-
 <!DOCTYPE html>
 <html lang="fr">
 
 <head>
     <meta charset="UTF-8">
-    <title>Produits</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Produits — Stock App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-
     <style>
     body {
         font-family: 'Poppins', sans-serif;
         background: #f4f6f9;
     }
 
+    /* SIDEBAR */
     .sidebar {
         position: fixed;
         width: 230px;
@@ -187,6 +205,16 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         margin-left: auto;
     }
 
+    .notif-badge {
+        background: #ef4444;
+        color: white;
+        padding: 1px 7px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 700;
+        margin-left: auto;
+    }
+
     .sidebar-footer {
         padding: 10px 8px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -201,7 +229,6 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         color: rgba(255, 255, 255, 0.4);
         text-decoration: none;
         font-size: 13px;
-        transition: all 0.2s;
     }
 
     .sidebar-footer a:hover {
@@ -209,44 +236,278 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         color: #fca5a5;
     }
 
+    /* CONTENT */
     .content {
         margin-left: 240px;
+        padding: 24px;
+    }
+
+    /* STATS GRID */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 14px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 16px 18px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+        transition: transform 0.2s;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-3px);
+    }
+
+    .stat-card-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        margin-bottom: 10px;
+    }
+
+    .stat-card-icon.blue {
+        background: #dbeafe;
+        color: #3b82f6;
+    }
+
+    .stat-card-icon.green {
+        background: #d1fae5;
+        color: #10b981;
+    }
+
+    .stat-card-icon.purple {
+        background: #ede9fe;
+        color: #6366f1;
+    }
+
+    .stat-card-icon.orange {
+        background: #fef3c7;
+        color: #f59e0b;
+    }
+
+    .stat-card-icon.emerald {
+        background: #d1fae5;
+        color: #059669;
+    }
+
+    .stat-card-value {
+        font-size: 16px;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1;
+        margin-bottom: 4px;
+    }
+
+    .stat-card-label {
+        font-size: 11px;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    /* BÉNÉFICE TOTAL BANNER */
+    .benefice-banner {
+        border-radius: 16px;
+        padding: 18px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .benefice-banner.positive {
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        border: 1.5px solid #bbf7d0;
+    }
+
+    .benefice-banner.negative {
+        background: linear-gradient(135deg, #fef2f2, #fee2e2);
+        border: 1.5px solid #fecaca;
+    }
+
+    .benefice-banner h5 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 800;
+    }
+
+    .benefice-banner.positive h5 {
+        color: #065f46;
+    }
+
+    .benefice-banner.negative h5 {
+        color: #991b1b;
+    }
+
+    .benefice-banner p {
+        margin: 3px 0 0;
+        font-size: 12px;
+    }
+
+    .benefice-banner.positive p {
+        color: #16a34a;
+    }
+
+    .benefice-banner.negative p {
+        color: #dc2626;
+    }
+
+    .benefice-big {
+        font-size: 28px;
+        font-weight: 800;
+    }
+
+    .benefice-banner.positive .benefice-big {
+        color: #10b981;
+    }
+
+    .benefice-banner.negative .benefice-big {
+        color: #ef4444;
+    }
+
+    /* PAGE HEADER */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .page-header h3 {
+        font-size: 20px;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0;
+    }
+
+    .search-box {
+        max-width: 280px;
+    }
+
+    /* TABLE */
+    .table-card {
+        background: white;
+        border-radius: 16px;
         padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     }
 
     .table th {
         background: #4f46e5;
         color: white;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 12px 14px;
     }
 
-    .table tr:hover {
-        background: #f1f1f1;
+    .table th:first-child {
+        border-radius: 8px 0 0 8px;
     }
 
-    .btn {
-        border-radius: 8px;
+    .table th:last-child {
+        border-radius: 0 8px 8px 0;
     }
 
-    .search-box {
-        max-width: 300px;
+    .table td {
+        padding: 12px 14px;
+        font-size: 13px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
     }
 
+    .table tr:hover td {
+        background: #f8faff;
+    }
+
+    /* BADGES */
     .badge-stock-low {
         background: #fee2e2;
         color: #dc2626;
-        padding: 3px 8px;
+        padding: 3px 9px;
         border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
+        font-size: 11px;
+        font-weight: 700;
     }
 
     .badge-stock-ok {
         background: #d1fae5;
         color: #059669;
-        padding: 3px 8px;
+        padding: 3px 9px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .badge-stock-zero {
+        background: #fee2e2;
+        color: #dc2626;
+        padding: 3px 9px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    /* PRIX ACHAT / VENTE / BÉNÉFICE */
+    .price-col {
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .purchase-col {
+        color: #3b82f6;
+        font-weight: 600;
+    }
+
+    .profit-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
         border-radius: 20px;
         font-size: 12px;
-        font-weight: 600;
+        font-weight: 700;
+    }
+
+    .profit-badge.pos {
+        background: #d1fae5;
+        color: #059669;
+    }
+
+    .profit-badge.neg {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .profit-badge.zero {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+
+    /* MARGE % */
+    .margin-bar {
+        height: 5px;
+        background: #e2e8f0;
+        border-radius: 4px;
+        margin-top: 4px;
+        overflow: hidden;
+    }
+
+    .margin-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+
+    .btn {
+        border-radius: 8px;
     }
     </style>
 </head>
@@ -256,17 +517,13 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
     <!-- SIDEBAR -->
     <div class="sidebar">
         <div class="text-center px-3 pt-2 pb-1">
-            <h4>📦 Stock</h4>
+            <h4>📦 Stock App</h4>
         </div>
-
-        <!-- PROFIL -->
         <div class="sidebar-profile">
             <?php if(!empty($currentUser['photo'])): ?>
-            <img src="../uploads/<?= htmlspecialchars($currentUser['photo']) ?>" alt="Photo">
+            <img src="../uploads/<?= htmlspecialchars($currentUser['photo']) ?>" alt="">
             <?php else: ?>
-            <div class="sidebar-avatar-placeholder">
-                <?= strtoupper(substr($_SESSION['user'], 0, 1)) ?>
-            </div>
+            <div class="sidebar-avatar-placeholder"><?= strtoupper(substr($_SESSION['user'],0,1)) ?></div>
             <?php endif; ?>
             <div style="overflow:hidden;">
                 <div class="sidebar-profile-name"><?= htmlspecialchars($_SESSION['user']) ?></div>
@@ -277,36 +534,34 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
                 <?php endif; ?>
             </div>
         </div>
-
         <div class="sidebar-nav">
             <div class="nav-section">Principal</div>
             <a href="../dashboard.php"><i class="bi bi-speedometer2"></i> Dashboard</a>
-
             <div class="nav-section">Inventaire</div>
             <a href="list.php" class="active"><i class="bi bi-box-seam"></i> Produits</a>
-            <!-- ✅ Visible pour tous -->
-            <a href="add.php">
-                <i class="bi bi-plus-circle"></i> Ajouter produit
-            </a>
-
+            <a href="add.php"><i class="bi bi-plus-circle"></i> Ajouter produit</a>
+            <div class="nav-section">Achats</div>
+            <a href="../purchases/add.php"><i class="bi bi-bag-plus"></i> Nouvel achat</a>
+            <a href="../purchases/list.php"><i class="bi bi-clock-history"></i> Historique achats</a>
+            <a href="../purchases/suppliers.php"><i class="bi bi-building"></i> Fournisseurs</a>
             <div class="nav-section">Ventes</div>
             <a href="../sales/sell.php"><i class="bi bi-cart-plus"></i> Nouvelle vente</a>
-            <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique</a>
-
-            <!-- Administration : admin seulement -->
+            <a href="../sales/list.php"><i class="bi bi-clock-history"></i> Historique ventes</a>
+            <div class="nav-section">Alertes</div>
+            <a href="../notifications/index.php">
+                <i class="bi bi-bell<?= $bellCount > 0 ? '-fill' : '' ?>"></i> Notifications
+                <?php if($bellCount > 0): ?>
+                <span class="notif-badge"><?= $bellCount > 9 ? '9+' : $bellCount ?></span>
+                <?php endif; ?>
+            </a>
             <?php if(isAdmin()): ?>
             <div class="nav-section">Administration</div>
-            <a href="../admin/create_employee.php">
-                <i class="bi bi-people"></i> Employés
-                <span class="admin-only-badge">Admin</span>
-            </a>
-            <a href="../admin/profile.php">
-                <i class="bi bi-person-circle"></i> Mon profil
-                <span class="admin-only-badge">Admin</span>
-            </a>
+            <a href="../admin/create_employee.php"><i class="bi bi-people"></i> Employés <span
+                    class="admin-only-badge">Admin</span></a>
+            <a href="../admin/profile.php"><i class="bi bi-person-circle"></i> Mon profil <span
+                    class="admin-only-badge">Admin</span></a>
             <?php endif; ?>
         </div>
-
         <div class="sidebar-footer">
             <a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Déconnexion</a>
         </div>
@@ -318,87 +573,172 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
         <!-- MESSAGES -->
         <?php if(isset($_GET['msg'])): ?>
         <?php if($_GET['msg'] == 'deleted'): ?>
-        <div class="alert alert-danger">🗑️ Produit supprimé avec succès.</div>
+        <div class="alert alert-danger alert-dismissible">🗑️ Produit supprimé avec succès.</div>
         <?php elseif($_GET['msg'] == 'sold'): ?>
-        <div class="alert alert-success">✅ Vente enregistrée avec succès !</div>
+        <div class="alert alert-success alert-dismissible">✅ Vente enregistrée avec succès !</div>
         <?php endif; ?>
         <?php endif; ?>
 
-        <!-- HEADER -->
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3>📦 Liste des produits</h3>
-            <div class="d-flex gap-2">
-                <input type="text" id="search" class="form-control search-box" placeholder="Rechercher...">
-                <!-- ✅ Bouton Ajouter visible pour tous -->
-                <a href="add.php" class="btn btn-primary">
+        <!-- PAGE HEADER -->
+        <div class="page-header">
+            <div>
+                <h3>📦 Liste des produits</h3>
+                <p style="font-size:13px;color:#64748b;margin:3px 0 0;">
+                    Inventaire avec prix d'achat, vente et bénéfices
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="text" id="search" class="form-control search-box" placeholder="🔍 Rechercher...">
+                <a href="add.php" class="btn btn-primary btn-sm px-3">
                     <i class="bi bi-plus-circle"></i> Ajouter
                 </a>
             </div>
         </div>
 
-        <!-- STATS RAPIDES -->
+        <!-- STATS GRID (5 cartes) -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card-icon blue"><i class="bi bi-grid-3x3-gap"></i></div>
+                <div class="stat-card-value"><?= $s['total'] ?? 0 ?></div>
+                <div class="stat-card-label">Types produits</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon purple"><i class="bi bi-stack"></i></div>
+                <div class="stat-card-value"><?= number_format($s['total_qty'] ?? 0, 0, '', ' ') ?></div>
+                <div class="stat-card-label">Unités en stock</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon blue"><i class="bi bi-bag"></i></div>
+                <div class="stat-card-value" style="font-size:13px;">
+                    <?= number_format($s['total_val_achat'] ?? 0, 0, '', ' ') ?> F</div>
+                <div class="stat-card-label">Valeur d'achat</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon orange"><i class="bi bi-tag"></i></div>
+                <div class="stat-card-value" style="font-size:13px;">
+                    <?= number_format($s['total_val_vente'] ?? 0, 0, '', ' ') ?> F</div>
+                <div class="stat-card-label">Valeur de vente</div>
+            </div>
+            <div class="stat-card">
+                <?php $totalBenef = floatval($s['total_benefice'] ?? 0); ?>
+                <div class="stat-card-icon <?= $totalBenef >= 0 ? 'emerald' : 'red' ?>">
+                    <i class="bi bi-graph-up-arrow"></i>
+                </div>
+                <div class="stat-card-value"
+                    style="font-size:13px;color:<?= $totalBenef >= 0 ? '#10b981' : '#ef4444' ?>;">
+                    <?= ($totalBenef >= 0 ? '+' : '−') . number_format(abs($totalBenef), 0, '', ' ') ?> F
+                </div>
+                <div class="stat-card-label">Bénéfice potentiel</div>
+            </div>
+        </div>
+
+        <!-- BANNIÈRE BÉNÉFICE TOTAL -->
         <?php
-    $statsRes = $conn->query("SELECT COUNT(*) AS total, SUM(quantity) AS total_qty, SUM(quantity * price) AS total_val FROM products");
-    $s = $statsRes->fetch_assoc();
+    $benefTotal = floatval($s['total_benefice'] ?? 0);
+    $isPos = $benefTotal >= 0;
     ?>
-        <div class="row g-3 mb-4">
-            <div class="col-md-4">
-                <div class="card p-3 text-center border-0 shadow-sm">
-                    <h4 class="text-primary"><?= $s['total'] ?? 0 ?></h4>
-                    <small class="text-muted">Types de produits</small>
-                </div>
+        <div class="benefice-banner <?= $isPos ? 'positive' : 'negative' ?>">
+            <div>
+                <h5>
+                    <?= $isPos ? '📈 Bénéfice potentiel total' : '📉 Perte potentielle totale' ?>
+                </h5>
+                <p>
+                    Si vous vendez tout le stock aux prix actuels
+                    (valeur vente − valeur achat)
+                </p>
             </div>
-            <div class="col-md-4">
-                <div class="card p-3 text-center border-0 shadow-sm">
-                    <h4 class="text-success"><?= $s['total_qty'] ?? 0 ?></h4>
-                    <small class="text-muted">Quantité totale en stock</small>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card p-3 text-center border-0 shadow-sm">
-                    <h4 class="text-warning"><?= number_format($s['total_val'] ?? 0, 0, '', ' ') ?> FCFA</h4>
-                    <small class="text-muted">Valeur totale du stock</small>
-                </div>
+            <div class="benefice-big">
+                <?= ($isPos ? '+' : '−') . number_format(abs($benefTotal), 0, '', ' ') ?> FCFA
             </div>
         </div>
 
         <!-- TABLEAU -->
-        <div class="card p-3 shadow-sm">
-            <table class="table table-hover" id="productTable">
+        <div class="table-card">
+            <table class="table table-hover mb-0" id="productTable">
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Nom</th>
-                        <th>Quantité</th>
-                        <th>Prix unitaire (FCFA)</th>
-                        <th>Valeur stock (FCFA)</th>
+                        <th>Nom du produit</th>
+                        <th>Qté</th>
+                        <th>Prix achat</th>
+                        <th>Prix vente</th>
+                        <th>Bénéfice/unité</th>
+                        <th>Bénéfice total</th>
+                        <th>Marge %</th>
                         <th>Statut</th>
-                        <th>Action</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php
-                $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
-                while($row = $res->fetch_assoc()):
-                ?>
+            $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
+            while($row = $res->fetch_assoc()):
+                $pp     = floatval($row['purchase_price'] ?? 0);
+                $pv     = floatval($row['price']);
+                $qty    = intval($row['quantity']);
+                $profit = $pv - $pp;
+                $profitTotal = $profit * $qty;
+                $margin = $pp > 0 ? (($profit / $pp) * 100) : 0;
+                $marginWidth = min(abs($margin), 100);
+                $profitClass = $profit > 0 ? 'pos' : ($profit < 0 ? 'neg' : 'zero');
+                $marginColor = $profit > 0 ? '#10b981' : ($profit < 0 ? '#ef4444' : '#94a3b8');
+            ?>
                     <tr>
-                        <td><?= $row['id'] ?></td>
-                        <td><strong><?= htmlspecialchars($row['name']) ?></strong></td>
-                        <td><?= $row['quantity'] ?></td>
-                        <td><?= number_format($row['price'], 0, '', ' ') ?></td>
-                        <td><?= number_format($row['quantity'] * $row['price'], 0, '', ' ') ?></td>
+                        <td style="color:#94a3b8;font-size:12px;"><?= $row['id'] ?></td>
                         <td>
-                            <?php if($row['quantity'] == 0): ?>
-                            <span class="badge-stock-low">❌ Rupture</span>
-                            <?php elseif($row['quantity'] <= 3): ?>
-                            <span class="badge-stock-low">⚠️ Stock faible</span>
+                            <strong style="color:#0f172a;"><?= htmlspecialchars($row['name']) ?></strong>
+                        </td>
+                        <td>
+                            <span style="font-weight:700;color:#0f172a;"><?= $qty ?></span>
+                        </td>
+                        <td class="purchase-col">
+                            <?= $pp > 0 ? number_format($pp, 0, '', ' ') . ' F' : '<span style="color:#94a3b8;">—</span>' ?>
+                        </td>
+                        <td class="price-col">
+                            <?= number_format($pv, 0, '', ' ') ?> F
+                        </td>
+                        <td>
+                            <span class="profit-badge <?= $profitClass ?>">
+                                <?php if($pp > 0): ?>
+                                <?= ($profit >= 0 ? '+' : '−') . number_format(abs($profit), 0, '', ' ') ?> F
+                                <?php else: ?>
+                                <span style="color:#94a3b8;">—</span>
+                                <?php endif; ?>
+                            </span>
+                        </td>
+                        <td>
+                            <?php if($pp > 0 && $qty > 0): ?>
+                            <span style="font-weight:700;color:<?= $profit >= 0 ? '#10b981' : '#ef4444' ?>;">
+                                <?= ($profit >= 0 ? '+' : '−') . number_format(abs($profitTotal), 0, '', ' ') ?> F
+                            </span>
+                            <?php else: ?>
+                            <span style="color:#94a3b8;">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td style="min-width:90px;">
+                            <?php if($pp > 0): ?>
+                            <div style="font-size:12px;font-weight:700;color:<?= $marginColor ?>;">
+                                <?= number_format($margin, 1) ?> %
+                            </div>
+                            <div class="margin-bar">
+                                <div class="margin-fill"
+                                    style="width:<?= $marginWidth ?>%;background:<?= $marginColor ?>;"></div>
+                            </div>
+                            <?php else: ?>
+                            <span style="color:#94a3b8;font-size:12px;">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if($qty == 0): ?>
+                            <span class="badge-stock-zero">❌ Rupture</span>
+                            <?php elseif($qty <= 5): ?>
+                            <span class="badge-stock-low">⚠️ Faible</span>
                             <?php else: ?>
                             <span class="badge-stock-ok">✅ En stock</span>
                             <?php endif; ?>
                         </td>
                         <td>
-                            <!-- VENDRE : tous -->
-                            <?php if($row['quantity'] > 0): ?>
+                            <?php if($qty > 0): ?>
                             <a href="../sales/sell.php?product_id=<?= $row['id'] ?>" class="btn btn-success btn-sm"
                                 title="Vendre">
                                 <i class="bi bi-cart"></i>
@@ -408,8 +748,6 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
                                 <i class="bi bi-cart-x"></i>
                             </button>
                             <?php endif; ?>
-
-                            <!-- ✅ MODIFIER + SUPPRIMER : tous -->
                             <a href="edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm" title="Modifier">
                                 <i class="bi bi-pencil"></i>
                             </a>
@@ -428,21 +766,20 @@ $res = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
 
     <script>
     document.getElementById("search").addEventListener("keyup", function() {
-        let value = this.value.toLowerCase();
+        const val = this.value.toLowerCase();
         document.querySelectorAll("#productTable tbody tr").forEach(row => {
-            row.style.display = row.innerText.toLowerCase().includes(value) ? "" : "none";
+            row.style.display = row.innerText.toLowerCase().includes(val) ? "" : "none";
         });
     });
 
     setTimeout(function() {
-        document.querySelectorAll('.alert').forEach(function(el) {
+        document.querySelectorAll('.alert').forEach(el => {
             el.style.transition = 'opacity 0.8s ease';
             el.style.opacity = '0';
             setTimeout(() => el.remove(), 800);
         });
-    }, 10000);
+    }, 8000);
     </script>
-
 </body>
 
 </html>
