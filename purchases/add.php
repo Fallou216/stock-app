@@ -15,11 +15,12 @@ $existing_qty = 0;
 if(isset($_POST['add'])){
     $product_name   = trim($_POST['product_name']);
     $qty            = intval($_POST['quantity']);
-    $unit_price     = floatval($_POST['unit_price']);   // ← prix d'achat
+    $unit_price     = floatval($_POST['unit_price']);
+    $sell_price     = floatval($_POST['sell_price']);
     $supplier_name  = trim($_POST['supplier_name']);
     $supplier_phone = trim($_POST['supplier_phone']);
 
-    if(!empty($product_name) && $qty > 0 && $unit_price > 0 && !empty($supplier_name)){
+    if(!empty($product_name) && $qty > 0 && $unit_price > 0 && $sell_price > 0 && !empty($supplier_name)){
 
         // ── Gestion fournisseur ─────────────────────────────
         $stmtSup = $conn->prepare("SELECT * FROM suppliers WHERE LOWER(name) = LOWER(?)");
@@ -53,7 +54,7 @@ if(isset($_POST['add'])){
         $stmtProd->close();
 
         if($prodRes->num_rows > 0){
-            // ✅ Produit existe → incrémenter quantité + mettre à jour purchase_price
+            // Produit existe → incrémenter + mettre à jour les prix
             $product      = $prodRes->fetch_assoc();
             $product_id   = $product['id'];
             $existing_qty = $product['quantity'] + $qty;
@@ -61,22 +62,22 @@ if(isset($_POST['add'])){
             $stmtUpProd = $conn->prepare("
                 UPDATE products
                 SET quantity       = quantity + ?,
-                    purchase_price = ?
+                    purchase_price = ?,
+                    price          = ?
                 WHERE id = ?
             ");
-            $stmtUpProd->bind_param("idi", $qty, $unit_price, $product_id);
+            $stmtUpProd->bind_param("iddi", $qty, $unit_price, $sell_price, $product_id);
             $stmtUpProd->execute();
             $stmtUpProd->close();
             $msgType = "incremented";
 
         } else {
-            // ✅ Nouveau produit → créer avec purchase_price
-            // prix de vente = prix d'achat par défaut (à modifier dans edit.php)
+            // Nouveau produit → créer avec les deux prix
             $stmtInsProd = $conn->prepare("
                 INSERT INTO products(name, quantity, purchase_price, price)
                 VALUES(?, ?, ?, ?)
             ");
-            $stmtInsProd->bind_param("sidd", $product_name, $qty, $unit_price, $unit_price);
+            $stmtInsProd->bind_param("sidd", $product_name, $qty, $unit_price, $sell_price);
             $stmtInsProd->execute();
             $product_id   = $conn->insert_id;
             $existing_qty = $qty;
@@ -486,7 +487,7 @@ $lastPurchases = $conn->query("
         align-items: start;
     }
 
-    /* FORM CARD */
+    /* FORM */
     .form-card {
         background: white;
         border-radius: 20px;
@@ -575,8 +576,6 @@ $lastPurchases = $conn->query("
     .form-group label i {
         width: 22px;
         height: 22px;
-        background: #ede9fe;
-        color: var(--primary);
         border-radius: 6px;
         display: flex;
         align-items: center;
@@ -584,9 +583,24 @@ $lastPurchases = $conn->query("
         font-size: 12px;
     }
 
-    .form-group label i.blue {
+    .label-purple {
+        background: #ede9fe;
+        color: var(--primary);
+    }
+
+    .label-blue {
         background: #dbeafe;
         color: var(--blue);
+    }
+
+    .label-orange {
+        background: #fef3c7;
+        color: var(--orange);
+    }
+
+    .label-green {
+        background: #d1fae5;
+        color: var(--green);
     }
 
     .required {
@@ -647,34 +661,52 @@ $lastPurchases = $conn->query("
         gap: 4px;
     }
 
-    /* PRIX VENTE SUGGESTION */
-    .sell-price-box {
-        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
-        border: 1.5px solid #bbf7d0;
+    /* BÉNÉFICE LIVE */
+    .profit-live {
         border-radius: 12px;
         padding: 14px 16px;
-        margin: 16px 0;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        border: 1.5px solid #bbf7d0;
+        transition: all 0.3s;
     }
 
-    .sell-price-label {
-        font-size: 12px;
+    .profit-live.neg {
+        background: linear-gradient(135deg, #fef2f2, #fee2e2);
+        border-color: #fecaca;
+    }
+
+    .profit-live-left {}
+
+    .profit-live-label {
+        font-size: 11px;
         font-weight: 700;
         color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
-    .sell-price-value {
-        font-size: 16px;
+    .profit-live-margin {
+        font-size: 11px;
+        color: var(--green);
+        margin-top: 2px;
+        font-weight: 600;
+    }
+
+    .profit-live-margin.neg {
+        color: var(--red);
+    }
+
+    .profit-live-value {
+        font-size: 22px;
         font-weight: 800;
         color: var(--green);
     }
 
-    .sell-price-hint {
-        font-size: 11px;
-        color: #94a3b8;
-        margin-top: 2px;
+    .profit-live-value.neg {
+        color: var(--red);
     }
 
     .total-preview {
@@ -838,7 +870,31 @@ $lastPurchases = $conn->query("
         font-weight: 600;
     }
 
-    /* ANALYSE RENTABILITE */
+    .recap-total-box {
+        margin-top: 14px;
+        padding: 14px;
+        background: #eff6ff;
+        border-radius: 12px;
+        border: 1.5px solid #bfdbfe;
+        text-align: center;
+    }
+
+    .recap-total-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--gray);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .recap-total-value {
+        font-size: 24px;
+        font-weight: 800;
+        color: var(--blue);
+        margin-top: 4px;
+    }
+
+    /* ANALYSE */
     .analyse-card {
         background: white;
         border-radius: 20px;
@@ -923,30 +979,7 @@ $lastPurchases = $conn->query("
         color: var(--red);
     }
 
-    .recap-total-box {
-        margin-top: 14px;
-        padding: 14px;
-        background: #eff6ff;
-        border-radius: 12px;
-        border: 1.5px solid #bfdbfe;
-        text-align: center;
-    }
-
-    .recap-total-label {
-        font-size: 11px;
-        font-weight: 700;
-        color: var(--gray);
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-
-    .recap-total-value {
-        font-size: 24px;
-        font-weight: 800;
-        color: var(--blue);
-        margin-top: 4px;
-    }
-
+    /* DERNIERS ACHATS */
     .last-card {
         background: var(--dark);
         border-radius: 20px;
@@ -1055,6 +1088,10 @@ $lastPurchases = $conn->query("
         .mini-stats {
             grid-template-columns: 1fr;
         }
+
+        .form-row {
+            grid-template-columns: 1fr;
+        }
     }
 
     @media(max-width:768px) {
@@ -1133,7 +1170,7 @@ $lastPurchases = $conn->query("
         <div class="topbar">
             <div>
                 <h5>🛍️ Nouvel Achat</h5>
-                <p>Enregistrez un achat — le stock et le prix d'achat seront mis à jour automatiquement</p>
+                <p>Enregistrez un achat — stock, prix d'achat et de vente mis à jour automatiquement</p>
             </div>
             <div class="breadcrumb-nav">
                 <a href="../dashboard.php"><i class="bi bi-house"></i> Accueil</a>
@@ -1175,7 +1212,7 @@ $lastPurchases = $conn->query("
         <div class="alert-msg incremented" id="alertMsg">
             <i class="bi bi-arrow-up-circle-fill"></i>
             <span>
-                Achat enregistré ! Stock incrémenté et prix d'achat mis à jour.<br>
+                Achat enregistré ! Stock incrémenté, prix d'achat et de vente mis à jour.<br>
                 <strong>Nouveau stock : <?= $existing_qty ?> unité(s)</strong>
             </span>
         </div>
@@ -1183,8 +1220,8 @@ $lastPurchases = $conn->query("
         <div class="alert-msg success" id="alertMsg">
             <i class="bi bi-check-circle-fill"></i>
             <span>
-                Achat enregistré ! Nouveau produit créé avec <strong><?= $existing_qty ?> unité(s)</strong>.<br>
-                <small style="opacity:0.8;">💡 Pensez à définir un prix de vente dans la liste des produits.</small>
+                Achat enregistré ! Nouveau produit créé avec <strong><?= $existing_qty ?> unité(s)</strong>,
+                prix d'achat et de vente enregistrés.
             </span>
         </div>
         <?php elseif($message === 'error'): ?>
@@ -1203,17 +1240,20 @@ $lastPurchases = $conn->query("
                     <div class="form-header-icon">🛍️</div>
                     <div>
                         <h4>Enregistrer un achat</h4>
-                        <p>Produit, quantité, prix d'achat et fournisseur</p>
+                        <p>Produit, quantité, prix d'achat, prix de vente et fournisseur</p>
                     </div>
                 </div>
 
                 <form method="POST" id="purchaseForm">
 
-                    <!-- PRODUIT -->
+                    <!-- SECTION PRODUIT -->
                     <div class="section-divider"><span>📦 Informations produit</span></div>
 
                     <div class="form-group">
-                        <label><i class="bi bi-box-seam"></i> Nom du produit <span class="required">*</span></label>
+                        <label>
+                            <i class="bi bi-box-seam label-purple"></i>
+                            Nom du produit <span class="required">*</span>
+                        </label>
                         <div class="input-wrap">
                             <i class="bi bi-box-seam input-icon"></i>
                             <input type="text" name="product_name" id="inputProduct"
@@ -1221,69 +1261,102 @@ $lastPurchases = $conn->query("
                         </div>
                         <div class="input-hint">
                             <i class="bi bi-info-circle"></i>
-                            Si le produit existe, son stock et son prix d'achat seront mis à jour
+                            Si le produit existe, son stock et ses prix seront mis à jour
                         </div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label><i class="bi bi-hash"></i> Quantité achetée <span class="required">*</span></label>
-                            <div class="input-wrap">
-                                <i class="bi bi-stack input-icon"></i>
-                                <input type="number" name="quantity" id="inputQty" placeholder="Ex: 50" min="1"
-                                    required>
-                            </div>
+                    <!-- QUANTITÉ -->
+                    <div class="form-group">
+                        <label>
+                            <i class="bi bi-hash label-purple"></i>
+                            Quantité achetée <span class="required">*</span>
+                        </label>
+                        <div class="input-wrap">
+                            <i class="bi bi-stack input-icon"></i>
+                            <input type="number" name="quantity" id="inputQty" placeholder="Ex: 50" min="1" required>
                         </div>
+                    </div>
+
+                    <!-- SECTION PRIX -->
+                    <div class="section-divider"><span>💰 Prix d'achat & de vente</span></div>
+
+                    <div class="form-row">
+                        <!-- PRIX D'ACHAT -->
                         <div class="form-group">
-                            <label><i class="bi bi-bag"></i> Prix d'achat unitaire (FCFA) <span
-                                    class="required">*</span></label>
+                            <label>
+                                <i class="bi bi-bag label-blue"></i>
+                                Prix d'achat (FCFA) <span class="required">*</span>
+                            </label>
                             <div class="input-wrap">
-                                <i class="bi bi-cash input-icon"></i>
+                                <i class="bi bi-bag input-icon"></i>
                                 <input type="number" name="unit_price" id="inputPrice" placeholder="Ex: 3000" min="1"
                                     required>
                             </div>
                             <div class="input-hint">
                                 <i class="bi bi-info-circle"></i>
-                                Mettra à jour le prix d'achat du produit
+                                Ce que vous payez au fournisseur
+                            </div>
+                        </div>
+
+                        <!-- PRIX DE VENTE -->
+                        <div class="form-group">
+                            <label>
+                                <i class="bi bi-tag-fill label-orange"></i>
+                                Prix de vente (FCFA) <span class="required">*</span>
+                            </label>
+                            <div class="input-wrap">
+                                <i class="bi bi-tag input-icon"></i>
+                                <input type="number" name="sell_price" id="inputSellPrice" placeholder="Ex: 5000"
+                                    min="1" required>
+                            </div>
+                            <div class="input-hint">
+                                <i class="bi bi-info-circle"></i>
+                                Ce que le client va payer
                             </div>
                         </div>
                     </div>
 
-                    <!-- APERÇU PRIX VENTE SUGGÉRÉ -->
-                    <div class="sell-price-box" id="sellPriceBox" style="display:none;">
-                        <div>
-                            <div class="sell-price-label">💡 Prix de vente suggéré (+20% de marge)</div>
-                            <div class="sell-price-hint">Modifiable dans la liste des produits</div>
+                    <!-- BÉNÉFICE EN DIRECT -->
+                    <div class="profit-live" id="profitLive">
+                        <div class="profit-live-left">
+                            <div class="profit-live-label">💹 Bénéfice par unité</div>
+                            <div class="profit-live-margin" id="profitMargin">Entrez les deux prix</div>
                         </div>
-                        <div class="sell-price-value" id="sellPriceSugg">— FCFA</div>
+                        <div class="profit-live-value" id="profitPerUnit">— FCFA</div>
                     </div>
 
                     <!-- TOTAL EN DIRECT -->
-                    <div class="total-preview">
+                    <div class="total-preview" style="margin-top:12px;">
                         <span class="total-preview-label">
                             <i class="bi bi-calculator"></i> Total achat estimé
                         </span>
                         <span class="total-preview-value" id="totalPreview">— FCFA</span>
                     </div>
 
-                    <!-- FOURNISSEUR -->
+                    <!-- SECTION FOURNISSEUR -->
                     <div class="section-divider"><span>🏢 Informations fournisseur</span></div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label><i class="bi bi-building" style="background:#dbeafe;color:#3b82f6;"></i> Nom
-                                fournisseur <span class="required">*</span></label>
+                            <label>
+                                <i class="bi bi-building label-blue"></i>
+                                Nom fournisseur <span class="required">*</span>
+                            </label>
                             <div class="input-wrap">
                                 <i class="bi bi-building input-icon"></i>
                                 <input type="text" name="supplier_name" id="inputSupplier"
                                     placeholder="Ex: Diallo Commerce" autocomplete="off" required>
                             </div>
-                            <div class="input-hint"><i class="bi bi-info-circle"></i> Créé automatiquement si nouveau
+                            <div class="input-hint">
+                                <i class="bi bi-info-circle"></i>
+                                Créé automatiquement si nouveau
                             </div>
                         </div>
                         <div class="form-group">
-                            <label><i class="bi bi-telephone" style="background:#dbeafe;color:#3b82f6;"></i> Numéro
-                                fournisseur</label>
+                            <label>
+                                <i class="bi bi-telephone label-blue"></i>
+                                Numéro fournisseur
+                            </label>
                             <div class="input-wrap">
                                 <i class="bi bi-telephone input-icon"></i>
                                 <input type="text" name="supplier_phone" id="inputPhone" placeholder="Ex: 77 123 45 67">
@@ -1314,7 +1387,8 @@ $lastPurchases = $conn->query("
                         <div class="recap-box-supplier" id="recapSupplier">Fournisseur: —</div>
                         <div class="recap-pills">
                             <div class="recap-pill" id="recapQty">Qté: —</div>
-                            <div class="recap-pill" id="recapPrice">Achat: —</div>
+                            <div class="recap-pill" id="recapBuy">Achat: —</div>
+                            <div class="recap-pill" id="recapSell">Vente: —</div>
                             <div class="recap-pill" id="recapPhone">📞 —</div>
                         </div>
                     </div>
@@ -1332,15 +1406,19 @@ $lastPurchases = $conn->query("
                         <span class="analyse-val" id="aBuy">— FCFA</span>
                     </div>
                     <div class="analyse-row">
-                        <span class="analyse-label">Vente suggérée (+20%)</span>
-                        <span class="analyse-val green" id="aSell">— FCFA</span>
+                        <span class="analyse-label">Prix de vente/unité</span>
+                        <span class="analyse-val" id="aSell">— FCFA</span>
                     </div>
                     <div class="analyse-row">
-                        <span class="analyse-label">Bénéfice/unité estimé</span>
+                        <span class="analyse-label">Marge %</span>
+                        <span class="analyse-val" id="aMargin">— %</span>
+                    </div>
+                    <div class="analyse-row">
+                        <span class="analyse-label">Bénéfice/unité</span>
                         <span class="analyse-val green" id="aProfit">— FCFA</span>
                     </div>
                     <div class="analyse-row">
-                        <span class="analyse-label">Bénéfice total estimé</span>
+                        <span class="analyse-label">Bénéfice total</span>
                         <span class="analyse-val green" id="aTotalProfit">— FCFA</span>
                     </div>
                     <div class="big-profit" id="bigProfit">
@@ -1382,19 +1460,26 @@ $lastPurchases = $conn->query("
     const inputProduct = document.getElementById('inputProduct');
     const inputQty = document.getElementById('inputQty');
     const inputPrice = document.getElementById('inputPrice');
+    const inputSellPrice = document.getElementById('inputSellPrice');
     const inputSupplier = document.getElementById('inputSupplier');
     const inputPhone = document.getElementById('inputPhone');
+
     const recapProduct = document.getElementById('recapProduct');
     const recapSupplier = document.getElementById('recapSupplier');
     const recapQty = document.getElementById('recapQty');
-    const recapPrice = document.getElementById('recapPrice');
+    const recapBuy = document.getElementById('recapBuy');
+    const recapSell = document.getElementById('recapSell');
     const recapPhone = document.getElementById('recapPhone');
     const recapTotal = document.getElementById('recapTotal');
     const totalPreview = document.getElementById('totalPreview');
-    const sellPriceBox = document.getElementById('sellPriceBox');
-    const sellPriceSugg = document.getElementById('sellPriceSugg');
+
+    const profitLive = document.getElementById('profitLive');
+    const profitPerUnit = document.getElementById('profitPerUnit');
+    const profitMargin = document.getElementById('profitMargin');
+
     const aBuy = document.getElementById('aBuy');
     const aSell = document.getElementById('aSell');
+    const aMargin = document.getElementById('aMargin');
     const aProfit = document.getElementById('aProfit');
     const aTotalProfit = document.getElementById('aTotalProfit');
     const bigProfit = document.getElementById('bigProfit');
@@ -1408,43 +1493,62 @@ $lastPurchases = $conn->query("
         const product = inputProduct.value.trim();
         const qty = parseInt(inputQty.value) || 0;
         const buy = parseFloat(inputPrice.value) || 0;
+        const sell = parseFloat(inputSellPrice.value) || 0;
         const supplier = inputSupplier.value.trim();
         const phone = inputPhone.value.trim();
+
         const total = qty * buy;
+        const profit = sell - buy;
+        const totalProfit = profit * qty;
+        const margin = buy > 0 ? ((profit / buy) * 100) : 0;
+        const isLoss = profit < 0;
 
-        // Prix vente suggéré à +20%
-        const suggestedSell = buy > 0 ? buy * 1.2 : 0;
-        const profitPerUnit = suggestedSell - buy;
-        const totalProfit = profitPerUnit * qty;
-
-        // Récap
+        // ── Récap ──
         recapProduct.textContent = product || 'Aucun produit saisi';
         recapProduct.className = 'recap-box-product' + (product ? '' : ' empty');
         recapSupplier.textContent = 'Fournisseur: ' + (supplier || '—');
         recapQty.textContent = 'Qté: ' + (qty > 0 ? qty : '—');
-        recapPrice.textContent = 'Achat: ' + (buy > 0 ? fmt(buy) + ' F' : '—');
+        recapBuy.textContent = 'Achat: ' + (buy > 0 ? fmt(buy) + ' F' : '—');
+        recapSell.textContent = 'Vente: ' + (sell > 0 ? fmt(sell) + ' F' : '—');
         recapPhone.textContent = '📞 ' + (phone || '—');
         recapTotal.textContent = total > 0 ? fmt(total) + ' FCFA' : '— FCFA';
         totalPreview.textContent = total > 0 ? fmt(total) + ' FCFA' : '— FCFA';
 
-        // Prix vente suggéré
-        if (buy > 0) {
-            sellPriceBox.style.display = 'flex';
-            sellPriceSugg.textContent = fmt(suggestedSell) + ' FCFA';
+        // ── Bénéfice live ──
+        if (buy > 0 && sell > 0) {
+            profitLive.className = 'profit-live' + (isLoss ? ' neg' : '');
+            profitPerUnit.className = 'profit-live-value' + (isLoss ? ' neg' : '');
+            profitMargin.className = 'profit-live-margin' + (isLoss ? ' neg' : '');
+            profitPerUnit.textContent = (isLoss ? '−' : '+') + fmt(Math.abs(profit)) + ' FCFA';
+            profitMargin.textContent = 'Marge : ' + margin.toFixed(1) + '%';
         } else {
-            sellPriceBox.style.display = 'none';
+            profitLive.className = 'profit-live';
+            profitPerUnit.className = 'profit-live-value';
+            profitMargin.className = 'profit-live-margin';
+            profitPerUnit.textContent = '— FCFA';
+            profitMargin.textContent = 'Entrez les deux prix';
         }
 
-        // Analyse rentabilité
+        // ── Panneau analyse ──
         aBuy.textContent = buy > 0 ? fmt(buy) + ' FCFA' : '— FCFA';
-        aSell.textContent = buy > 0 ? fmt(suggestedSell) + ' FCFA' : '— FCFA';
-        aProfit.textContent = buy > 0 ? '+' + fmt(profitPerUnit) + ' FCFA' : '— FCFA';
-        aTotalProfit.textContent = buy > 0 ? '+' + fmt(totalProfit) + ' FCFA' : '— FCFA';
-        bigProfitVal.textContent = buy > 0 ? '+' + fmt(totalProfit) + ' FCFA' : '— FCFA';
+        aSell.textContent = sell > 0 ? fmt(sell) + ' FCFA' : '— FCFA';
+        aMargin.textContent = (buy > 0 && sell > 0) ? margin.toFixed(1) + ' %' : '— %';
+
+        const profitColor = !isLoss ? 'green' : 'red';
+        aProfit.className = 'analyse-val ' + (buy > 0 && sell > 0 ? profitColor : '');
+        aTotalProfit.className = 'analyse-val ' + (buy > 0 && sell > 0 ? profitColor : '');
+        aProfit.textContent = (buy > 0 && sell > 0) ? (isLoss ? '−' : '+') + fmt(Math.abs(profit)) + ' FCFA' : '— FCFA';
+        aTotalProfit.textContent = (buy > 0 && sell > 0) ? (isLoss ? '−' : '+') + fmt(Math.abs(totalProfit)) + ' FCFA' :
+            '— FCFA';
+
+        bigProfit.className = 'big-profit' + (isLoss ? ' loss' : '');
+        bigProfitVal.className = 'big-profit-value' + (isLoss ? ' loss' : '');
+        bigProfitVal.textContent = (buy > 0 && sell > 0) ? (isLoss ? '−' : '+') + fmt(Math.abs(totalProfit)) + ' FCFA' :
+            '— FCFA';
     }
 
-    [inputProduct, inputQty, inputPrice, inputSupplier, inputPhone].forEach(el => {
-        el.addEventListener('input', updateAll);
+    [inputProduct, inputQty, inputPrice, inputSellPrice, inputSupplier, inputPhone].forEach(el => {
+        if (el) el.addEventListener('input', updateAll);
     });
 
     function resetForm() {
